@@ -1,0 +1,25 @@
+# Normalise all text files to LF in the repository.
+# On checkout, Linux/Mac leave them as LF; Windows also gets LF (no CRLF conversion).
+* text=auto eol=lf
+
+# Explicitly text
+*.rs        text eol=lf
+*.toml      text eol=lf
+*.json      text eol=lf
+*.ts        text eol=lf
+*.tsx       text eol=lf
+*.mjs       text eol=lf
+*.js        text eol=lf
+*.css       text eol=lf
+*.md        text eol=lf
+*.ps1       text eol=lf
+*.sh        text eol=lf
+*.lock      text eol=lf
+
+# Arcium circuit artifacts — treat as binary to prevent any corruption
+*.arcis     binary
+*.idarc     binary
+*.weight    binary
+
+# Compiled BPF binary
+*.so        binary

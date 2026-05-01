@@ -1,0 +1,11 @@
+[package]
+name = "encrypted-ixs"
+version = "0.9.7"
+edition = "2021"
+
+[[bin]]
+name = "encrypted-ixs"
+path = "src/main.rs"
+
+[dependencies]
+arcis = "*"

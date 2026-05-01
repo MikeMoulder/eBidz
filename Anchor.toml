@@ -1,0 +1,9 @@
+[provider]
+cluster = "devnet"
+wallet = "C:/Users/DELL/.config/solana/id.json"
+
+[programs.devnet]
+ebidz = "4U9HFuutY2KJdrw3AFsQhf3Kvp6BvVjaGBmDB1bQAGBU"
+
+[scripts]
+test = "echo no tests"
