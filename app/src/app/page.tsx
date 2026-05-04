@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import Image from 'next/image';
+import arciumLogo from './logo/arcium_logo.png';
 import {
   ArrowRight,
   ArrowUpRight,
@@ -12,10 +14,9 @@ import {
   Database,
   FileCheck2,
   AlertTriangle,
-  Sparkles,
 } from 'lucide-react';
-import { AuctionGrid } from '@/components/auction/AuctionGrid';
 import { LiveAuctionsSection } from '@/components/auction/LiveAuctionsSection';
+import { SettledAuctionsSection } from '@/components/auction/SettledAuctionsSection';
 import { Badge } from '@/components/primitives/Badge';
 import { Button } from '@/components/primitives/Button';
 import { ClusterPulse } from '@/components/arcium/ClusterPulse';
@@ -26,11 +27,8 @@ import {
   ScrollRevealItem,
 } from '@/components/motion/ScrollReveal';
 import { CountUp } from '@/components/motion/CountUp';
-import { mockAuctions } from '@/lib/mockData';
 
 export default function HomePage() {
-  const settled = mockAuctions.filter((a) => a.status === 'settled');
-
   return (
     <>
       <Hero />
@@ -38,10 +36,8 @@ export default function HomePage() {
       <Problem />
       <HowItWorks />
       <AuctionTypesSection />
-      <Architecture />
-      <PrivacyTable />
       <LiveAuctionsSection />
-      {settled.length > 0 && <SettledSection settled={settled} />}
+      <SettledAuctionsSection />
       <Trust />
       <FAQ />
       <CTA />
@@ -66,8 +62,8 @@ function Hero() {
             </span>
             <span className="h-px flex-1 max-w-24 bg-border-subtle" />
             <Badge tone="violet">
-              <Sparkles size={10} />
-              Arcium × Solana
+              <Image src={arciumLogo} alt="Arcium" className="h-3 w-3 object-contain" />
+              Powered by Arcium
             </Badge>
           </div>
         </ScrollReveal>
@@ -175,9 +171,8 @@ function Metric({
         {label}
       </span>
       <span
-        className={`font-mono text-[11px] ${
-          tone === 'success' ? 'text-state-success' : 'text-text-secondary'
-        }`}
+        className={`font-mono text-[11px] ${tone === 'success' ? 'text-state-success' : 'text-text-secondary'
+          }`}
       >
         {value}
       </span>
@@ -232,46 +227,46 @@ function Problem() {
     body: string;
     icon: React.ComponentType<{ size?: number | string; className?: string }>;
   }[] = [
-    {
-      n: '/01',
-      statValue: 1.2,
-      statPrefix: '$',
-      statSuffix: 'B+',
-      decimals: 1,
-      label: 'MEV extracted in 2024',
-      title: 'Every plaintext bid is a public price signal',
-      body: 'When bid amounts hit the mempool, MEV bots front-run, sandwich, or reorder transactions to extract value from honest participants.',
-      icon: Zap,
-    },
-    {
-      n: '/02',
-      statValue: 0,
-      statSuffix: '%',
-      label: 'Privacy in current auctions',
-      title: 'Sophisticated bidders watch and react',
-      body: 'In open ascending auctions, every bid is visible. Retail bidders are at a permanent disadvantage versus actors monitoring the chain in real time.',
-      icon: Eye,
-    },
-    {
-      n: '/03',
-      statValue: 30,
-      statPrefix: '~',
-      statSuffix: '%',
-      label: 'NFT auctions affected by shilling',
-      title: 'Insider collusion and fake scarcity',
-      body: 'Auction creators and coordinated groups place shill bids to inflate prices, suppress competition, or extract from legitimate participants.',
-      icon: Users,
-    },
-    {
-      n: '/04',
-      statValue: 0,
-      statRaw: 'No theory',
-      label: 'Vickrey auctions onchain — until now',
-      title: 'Optimal mechanisms require bid privacy',
-      body: 'Vickrey auctions are theoretically optimal for honest bidding — but require bid secrecy. Without MPC, they are impossible to run trustlessly onchain.',
-      icon: AlertTriangle,
-    },
-  ];
+      {
+        n: '/01',
+        statValue: 1.2,
+        statPrefix: '$',
+        statSuffix: 'B+',
+        decimals: 1,
+        label: 'MEV extracted in 2024',
+        title: 'Every plaintext bid is a public price signal',
+        body: 'When bid amounts hit the mempool, MEV bots front-run, sandwich, or reorder transactions to extract value from honest participants.',
+        icon: Zap,
+      },
+      {
+        n: '/02',
+        statValue: 0,
+        statSuffix: '%',
+        label: 'Privacy in current auctions',
+        title: 'Sophisticated bidders watch and react',
+        body: 'In open ascending auctions, every bid is visible. Retail bidders are at a permanent disadvantage versus actors monitoring the chain in real time.',
+        icon: Eye,
+      },
+      {
+        n: '/03',
+        statValue: 30,
+        statPrefix: '~',
+        statSuffix: '%',
+        label: 'NFT auctions affected by shilling',
+        title: 'Insider collusion and fake scarcity',
+        body: 'Auction creators and coordinated groups place shill bids to inflate prices, suppress competition, or extract from legitimate participants.',
+        icon: Users,
+      },
+      {
+        n: '/04',
+        statValue: 0,
+        statRaw: 'No theory',
+        label: 'Vickrey auctions onchain — until now',
+        title: 'Optimal mechanisms require bid privacy',
+        body: 'Vickrey auctions are theoretically optimal for honest bidding — but require bid secrecy. Without MPC, they are impossible to run trustlessly onchain.',
+        icon: AlertTriangle,
+      },
+    ];
 
   return (
     <section className="border-b border-border-subtle">
@@ -333,25 +328,21 @@ function HowItWorks() {
       n: '01',
       title: 'Encrypt locally',
       body: 'Your bid is encrypted in your browser using the Arcium cluster’s threshold public key. The plaintext never leaves your machine.',
-      code: 'const ct = arcium.encrypt(bid, clusterPk);',
     },
     {
       n: '02',
       title: 'Submit ciphertext',
       body: 'The encrypted bid and a SOL deposit are stored onchain in a per-bidder PDA. Nobody — including validators — can read the bid.',
-      code: 'submit_bid({ ct, deposit })',
     },
     {
       n: '03',
       title: 'MPC computes the winner',
       body: 'At deadline, anyone calls close_auction. Arcium’s MPC cluster runs the winner-determination circuit across ciphertexts.',
-      code: 'queue(MXE, "first_price_winner")',
     },
     {
       n: '04',
       title: 'Onchain settlement',
       body: 'The cluster posts the cluster-signed result via callback. The program verifies the signature, settles the winner, opens refunds.',
-      code: 'settle_auction({ result, sig })',
     },
   ];
 
@@ -389,12 +380,9 @@ function HowItWorks() {
                 <h3 className="font-display text-base font-semibold mb-2 tracking-tight">
                   {s.title}
                 </h3>
-                <p className="text-xs text-text-muted leading-relaxed mb-4">
+                <p className="text-xs text-text-muted leading-relaxed">
                   {s.body}
                 </p>
-                <pre className="font-mono text-[10px] text-accent-pink bg-bg-base/60 border border-border-subtle px-2 py-1.5 overflow-x-auto">
-                  {s.code}
-                </pre>
               </div>
             </ScrollRevealItem>
           ))}
@@ -413,41 +401,34 @@ function AuctionTypesSection() {
     tagline: string;
     use: string;
     strategy: string;
-    mpc: string;
-    circuit: string;
+
     available: boolean;
   }[] = [
-    {
-      tone: 'violet',
-      tag: 'First-Price',
-      tagline: 'Highest bid wins, pays own bid.',
-      use: 'NFT sales · fundraising · one-off assets',
-      strategy: 'Strategic shading — bid below true valuation',
-      mpc: 'O(n) — find max',
-      circuit: 'first_price_winner.arcium',
-      available: true,
-    },
-    {
-      tone: 'pink',
-      tag: 'Vickrey',
-      tagline: 'Highest bid wins, pays second-highest.',
-      use: 'Token sales · governance · fair price discovery',
-      strategy: 'Truthful bidding — dominant strategy',
-      mpc: 'O(n) — find max + second-max',
-      circuit: 'vickrey_winner.arcium',
-      available: false,
-    },
-    {
-      tone: 'green',
-      tag: 'Uniform-Price',
-      tagline: 'K winners pay the same clearing price.',
-      use: 'Token launches · NFT batches · allowlist slots',
-      strategy: 'Bid your true marginal valuation',
-      mpc: 'O(n log n) — sort + Kth-highest',
-      circuit: 'uniform_price_winner.arcium',
-      available: false,
-    },
-  ];
+      {
+        tone: 'violet',
+        tag: 'First-Price',
+        tagline: 'Highest bid wins, pays own bid.',
+        use: 'NFT sales · fundraising · one-off assets',
+        strategy: 'Strategic shading — bid below true valuation',
+        available: true,
+      },
+      {
+        tone: 'pink',
+        tag: 'Vickrey',
+        tagline: 'Highest bid wins, pays second-highest.',
+        use: 'Token sales · governance · fair price discovery',
+        strategy: 'Truthful bidding — dominant strategy',
+        available: false,
+      },
+      {
+        tone: 'green',
+        tag: 'Uniform-Price',
+        tagline: 'K winners pay the same clearing price.',
+        use: 'Token launches · NFT batches · allowlist slots',
+        strategy: 'Bid your true marginal valuation',
+        available: false,
+      },
+    ];
 
   return (
     <section className="border-b border-border-subtle">
@@ -488,8 +469,6 @@ function AuctionTypesSection() {
                   <dl className="mt-5 divide-y divide-border-subtle border-y border-border-subtle">
                     <Spec label="Best for" value={t.use} />
                     <Spec label="Bidder strategy" value={t.strategy} />
-                    <Spec label="MPC complexity" value={t.mpc} />
-                    <Spec label="Circuit" value={t.circuit} mono />
                   </dl>
                 </div>
               </article>
@@ -724,27 +703,6 @@ function Header({
     >
       {children}
     </div>
-  );
-}
-
-/* ─────────────────────────────────────────────────────── SETTLED ─── */
-
-function SettledSection({ settled }: { settled: typeof mockAuctions }) {
-  return (
-    <section className="border-b border-border-subtle">
-      <div className="mx-auto max-w-[1400px] px-6 py-24">
-        <ScrollReveal>
-          <SectionHeader
-            number="08 / Archive"
-            title="Recently settled."
-            lede="Results computed by Arcium MPC and posted onchain. Each settlement is cryptographically verifiable."
-          />
-        </ScrollReveal>
-        <ScrollReveal delay={0.1}>
-          <AuctionGrid auctions={settled} />
-        </ScrollReveal>
-      </div>
-    </section>
   );
 }
 

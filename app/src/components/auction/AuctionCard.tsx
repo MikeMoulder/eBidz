@@ -4,7 +4,7 @@ import { Users, Lock, ArrowUpRight } from 'lucide-react';
 import { Badge } from '@/components/primitives/Badge';
 import { CountdownTimer } from './CountdownTimer';
 import { CiphertextScramble } from '@/components/arcium/CiphertextScramble';
-import { auctionTypeMeta, type Auction, type AuctionType } from '@/lib/mockData';
+import { auctionTypeMeta, type Auction, type AuctionType } from '@/lib/types';
 import { formatSol, shortAddress } from '@/lib/format';
 
 const typeTone: Record<AuctionType, 'violet' | 'lavender' | 'green'> = {
@@ -16,6 +16,7 @@ const typeTone: Record<AuctionType, 'violet' | 'lavender' | 'green'> = {
 export function AuctionCard({ auction, index }: { auction: Auction; index?: number }) {
   const meta = auctionTypeMeta[auction.auctionType];
   const settled = auction.status === 'settled';
+  const expired = !settled && Date.now() > auction.deadline;
 
   return (
     <Link href={`/auction/${auction.id}`} className="group block">
@@ -28,11 +29,13 @@ export function AuctionCard({ auction, index }: { auction: Auction; index?: numb
             </span>
             <span className="text-text-faint">·</span>
             <span className="font-mono text-[10px] uppercase tracking-widest text-text-muted">
-              {auction.id}
+              {shortAddress(auction.id)}
             </span>
           </div>
           {settled ? (
             <Badge tone="green">Settled</Badge>
+          ) : expired ? (
+            <Badge tone="neutral">Ended</Badge>
           ) : (
             <Badge tone="live">
               <span className="h-1 w-1 bg-state-success animate-pulse" />

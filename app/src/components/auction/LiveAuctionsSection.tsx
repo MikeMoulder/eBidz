@@ -5,29 +5,24 @@ import { ArrowRight } from 'lucide-react';
 import { useAuctions } from '@/hooks/useAuctions';
 import { AuctionCard } from './AuctionCard';
 import { Button } from '@/components/primitives/Button';
-import { mockAuctions, type Auction } from '@/lib/mockData';
+import { type Auction } from '@/lib/types';
 import { type LiveAuction } from '@/hooks/useAuctions';
+import { getAuctionMeta } from '@/lib/auctionMeta';
 
-function liveToMock(a: LiveAuction): Auction {
+export function liveToUIAuction(a: LiveAuction): Auction {
+  const meta = typeof window !== 'undefined' ? getAuctionMeta(a.publicKey) : null;
+
   // Map AuctionType onchain enum → UI string
   const typeKey = Object.keys(a.auctionType)[0] as string;
   const auctionType: Auction['auctionType'] =
     typeKey === 'sealedBidFirstPrice'
       ? 'first-price'
       : typeKey === 'vickrey'
-      ? 'vickrey'
-      : 'uniform';
+        ? 'vickrey'
+        : 'uniform';
 
-  // Map AuctionStatus onchain enum → UI string
-  const statusKey = Object.keys(a.status)[0] as string;
-  const status: Auction['status'] =
-    statusKey === 'active'
-      ? 'active'
-      : statusKey === 'computing'
-      ? 'computing'
-      : statusKey === 'settled'
-      ? 'settled'
-      : 'active';
+  // AuctionStatus is now normalized to a string in useAuctions
+  const status = a.status as Auction['status'];
 
   const units =
     typeKey === 'uniformPrice' && (a.auctionType as any).uniformPrice?.units
@@ -36,17 +31,17 @@ function liveToMock(a: LiveAuction): Auction {
 
   return {
     id: a.publicKey,
-    title: a.publicKey.slice(0, 8) + '…',   // no on-chain title field; use pubkey
-    description: '',
-    imageUrl: `https://picsum.photos/seed/${a.publicKey.slice(0, 8)}/1000/1000`,
-    creator: a.creator.toString(),
+    title: meta?.title || a.publicKey.slice(0, 8) + '…',
+    description: meta?.description || '',
+    imageUrl: meta?.imageUrl || `https://picsum.photos/seed/${a.publicKey.slice(0, 8)}/1000/1000`,
+    creator: a.creator,
     auctionType,
     reservePrice: a.reserveSol != null ? Math.round(a.reserveSol * 1e9) : undefined,
     units,
     bidCount: a.bidCountN,
     deadline: a.deadlineMs,
     status,
-    winner: a.winner ? a.winner.toString() : undefined,
+    winner: a.winner ?? undefined,
     clearingPrice: undefined,
   };
 }
@@ -54,14 +49,10 @@ function liveToMock(a: LiveAuction): Auction {
 export function LiveAuctionsSection() {
   const { auctions: liveAuctions, loading } = useAuctions({ status: 'active' as any });
 
-  // Normalise live auctions to mock shape for AuctionCard compatibility
-  const liveAsCards = liveAuctions.map(liveToMock);
-
-  // Fall back to mock data while loading or when devnet has no auctions
-  const active =
-    liveAsCards.length > 0
-      ? liveAsCards
-      : mockAuctions.filter((a) => a.status === 'active');
+  // Normalise live auctions to UI Auction shape for AuctionCard
+  const active = liveAuctions
+    .map(liveToUIAuction)
+    .filter((a) => a.status !== 'settled' && Date.now() <= a.deadline);
 
   return (
     <section id="live" className="border-b border-border-subtle scroll-mt-20">
@@ -77,9 +68,9 @@ export function LiveAuctionsSection() {
                 <span className="ml-3 inline-block h-2 w-2 rounded-full bg-accent-primary/50 animate-pulse align-middle" />
               )}
             </h2>
-            {liveAsCards.length > 0 && (
+            {active.length > 0 && (
               <p className="text-xs font-mono text-text-muted mt-1">
-                {liveAsCards.length} on-chain auction{liveAsCards.length !== 1 ? 's' : ''} found on devnet
+                {active.length} on-chain auction{active.length !== 1 ? 's' : ''} found on devnet
               </p>
             )}
           </div>
@@ -91,11 +82,17 @@ export function LiveAuctionsSection() {
           </Link>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {active.map((a, i) => (
-            <AuctionCard key={a.id} auction={a} index={i} />
-          ))}
-        </div>
+        {active.length === 0 && !loading ? (
+          <div className="border border-dashed border-border-subtle bg-bg-surface/40 p-12 text-center">
+            <p className="text-text-muted font-mono text-xs uppercase tracking-widest">No live auctions on devnet</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {active.map((a, i) => (
+              <AuctionCard key={a.id} auction={a} index={i} />
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );

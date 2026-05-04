@@ -483,7 +483,7 @@ eBidz is not just a hackathon demo. The problem it solves — **fair, manipulati
 - Reduces the structural advantages of sophisticated actors over retail participants
 
 ### Why eBidz Matters
-Every unfair auction is a broken promise. When bids can be seen, copied, or front-run, the auction is no longer a mechanism for discovering the true value of something — it becomes a game for insiders. eBidz restores the original purpose of an auction: **let the market speak, honestly**.
+Every unfair auction is a broken promise. When bids can be seen, copied, or front-run, the auction is no longer a mechanism for discovering the true value of something, it becomes a game for insiders. eBidz restores the original purpose of an auction: **let the market speak, honestly**.
 
 ---
 

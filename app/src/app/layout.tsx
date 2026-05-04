@@ -27,12 +27,12 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'eBidz — Sealed-bid auctions on Solana',
+  title: 'eBidz',
   description:
     'Fair, manipulation-resistant onchain auctions powered by Arcium MPC. Bids stay encrypted until the auction closes.',
   metadataBase: new URL('https://ebidz.app'),
   openGraph: {
-    title: 'eBidz — Sealed-bid auctions on Solana',
+    title: 'eBidz',
     description:
       'Fair, manipulation-resistant onchain auctions powered by Arcium MPC.',
     type: 'website',

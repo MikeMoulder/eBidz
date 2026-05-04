@@ -42,6 +42,9 @@ export default function CreateAuctionPage() {
       units: auctionType === 'uniform' ? parseInt(units) : 1,
       reserveSol: reserveSol ? parseFloat(reserveSol) : undefined,
       deadlineUnixSeconds: deadlineUnix,
+      title: title.trim() || undefined,
+      description: description.trim() || undefined,
+      imageUrl: imageUrl.trim() || undefined,
     });
 
     if (result?.auctionKey) {
@@ -81,146 +84,146 @@ export default function CreateAuctionPage() {
               </div>
             </div>
           ) : (
-          <form onSubmit={handleLaunch}>
-          <div className="border border-border-subtle bg-bg-surface relative">
-            <div className="absolute -top-px left-4 right-4 h-px bg-gradient-to-r from-transparent via-accent-primary to-transparent" />
+            <form onSubmit={handleLaunch}>
+              <div className="border border-border-subtle bg-bg-surface relative">
+                <div className="absolute -top-px left-4 right-4 h-px bg-gradient-to-r from-transparent via-accent-primary to-transparent" />
 
-            {/* Section: Item */}
-            <FormSection number="01" title="Item">
-              <Field label="Title" required>
-                <Input placeholder="e.g. Solana Genesis Pass #042" value={title} onChange={e => setTitle(e.target.value)} />
-              </Field>
-              <Field label="Description">
-                <textarea
-                  rows={4}
-                  placeholder="What are you auctioning? Include any provenance or attribute details bidders need."
-                  className="w-full border border-border-subtle bg-bg-base/50 px-3.5 py-2.5 focus-ring text-text-primary placeholder:text-text-faint outline-none resize-none transition-colors focus:border-accent-primary/60 text-sm"
-                  value={description}
-                  onChange={e => setDescription(e.target.value)}
-                />
-              </Field>
-              <div className="grid sm:grid-cols-2 gap-4">
-                <Field label="Item mint" required>
-                  <Input
-                    placeholder="So111…1112"
-                    className="font-mono text-sm"
-                    value={itemMint}
-                    onChange={e => setItemMint(e.target.value)}
-                  />
-                  {itemMintInvalid && (
-                    <p className="mt-1 text-[11px] text-state-danger font-mono">
-                      Enter a valid Solana public key.
-                    </p>
-                  )}
-                </Field>
-                <Field label="Image URL">
-                  <Input placeholder="https://…" value={imageUrl} onChange={e => setImageUrl(e.target.value)} />
-                </Field>
-              </div>
-            </FormSection>
-
-            {/* Section: Mechanism */}
-            <FormSection number="02" title="Mechanism">
-              <Field label="Auction type" required>
-                <div className="grid sm:grid-cols-3 gap-2">
-                  <TypeOption
-                    title="First-Price"
-                    desc="Highest bid wins. Pays own bid."
-                    selected={auctionType === 'first-price'}
-                    onSelect={() => setAuctionType('first-price')}
-                  />
-                  <TypeOption
-                    title="Vickrey"
-                    desc="Highest bid wins. Pays second-highest."
-                    selected={auctionType === 'vickrey'}
-                    onSelect={() => setAuctionType('vickrey')}
-                  />
-                  <TypeOption
-                    title="Uniform"
-                    desc="K winners pay clearing price."
-                    selected={auctionType === 'uniform'}
-                    onSelect={() => setAuctionType('uniform')}
-                  />
-                </div>
-              </Field>
-
-              <div className="grid sm:grid-cols-2 gap-4">
-                <Field
-                  label="Reserve price"
-                  hint="Minimum to win. Below = no_winner."
-                >
-                  <div className="relative">
-                    <Input
-                      type="number"
-                      step="0.01"
-                      placeholder="0.00"
-                      className="pr-14"
-                      value={reserveSol}
-                      onChange={e => setReserveSol(e.target.value)}
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-[10px] uppercase tracking-widest text-text-faint">
-                      SOL
-                    </span>
-                  </div>
-                </Field>
-
-                {auctionType === 'uniform' && (
-                  <Field label="Units" hint="Number of items to sell.">
-                    <Input
-                      type="number"
-                      placeholder="1"
-                      value={units}
-                      onChange={e => setUnits(e.target.value)}
+                {/* Section: Item */}
+                <FormSection number="01" title="Item">
+                  <Field label="Title" required>
+                    <Input placeholder="e.g. Solana Genesis Pass #042" value={title} onChange={e => setTitle(e.target.value)} />
+                  </Field>
+                  <Field label="Description">
+                    <textarea
+                      rows={4}
+                      placeholder="What are you auctioning? Include any provenance or attribute details bidders need."
+                      className="w-full border border-border-subtle bg-bg-base/50 px-3.5 py-2.5 focus-ring text-text-primary placeholder:text-text-faint outline-none resize-none transition-colors focus:border-accent-primary/60 text-sm"
+                      value={description}
+                      onChange={e => setDescription(e.target.value)}
                     />
                   </Field>
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <Field label="Item mint" required>
+                      <Input
+                        placeholder="So111…1112"
+                        className="font-mono text-sm"
+                        value={itemMint}
+                        onChange={e => setItemMint(e.target.value)}
+                      />
+                      {itemMintInvalid && (
+                        <p className="mt-1 text-[11px] text-state-danger font-mono">
+                          Enter a valid Solana public key.
+                        </p>
+                      )}
+                    </Field>
+                    <Field label="Image URL">
+                      <Input placeholder="https://…" value={imageUrl} onChange={e => setImageUrl(e.target.value)} />
+                    </Field>
+                  </div>
+                </FormSection>
+
+                {/* Section: Mechanism */}
+                <FormSection number="02" title="Mechanism">
+                  <Field label="Auction type" required>
+                    <div className="grid sm:grid-cols-3 gap-2">
+                      <TypeOption
+                        title="First-Price"
+                        desc="Highest bid wins. Pays own bid."
+                        selected={auctionType === 'first-price'}
+                        onSelect={() => setAuctionType('first-price')}
+                      />
+                      <TypeOption
+                        title="Vickrey"
+                        desc="Highest bid wins. Pays second-highest."
+                        selected={auctionType === 'vickrey'}
+                        onSelect={() => setAuctionType('vickrey')}
+                      />
+                      <TypeOption
+                        title="Uniform"
+                        desc="K winners pay clearing price."
+                        selected={auctionType === 'uniform'}
+                        onSelect={() => setAuctionType('uniform')}
+                      />
+                    </div>
+                  </Field>
+
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <Field
+                      label="Reserve price"
+                      hint="Minimum to win. Below = no_winner."
+                    >
+                      <div className="relative">
+                        <Input
+                          type="number"
+                          step="0.01"
+                          placeholder="0.00"
+                          className="pr-14"
+                          value={reserveSol}
+                          onChange={e => setReserveSol(e.target.value)}
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-[10px] uppercase tracking-widest text-text-faint">
+                          SOL
+                        </span>
+                      </div>
+                    </Field>
+
+                    {auctionType === 'uniform' && (
+                      <Field label="Units" hint="Number of items to sell.">
+                        <Input
+                          type="number"
+                          placeholder="1"
+                          value={units}
+                          onChange={e => setUnits(e.target.value)}
+                        />
+                      </Field>
+                    )}
+                  </div>
+                </FormSection>
+
+                {/* Section: Schedule */}
+                <FormSection number="03" title="Schedule">
+                  <Field label="Deadline" required hint="When sealed bids close.">
+                    <Input
+                      type="datetime-local"
+                      value={deadline}
+                      onChange={e => setDeadline(e.target.value)}
+                    />
+                  </Field>
+                </FormSection>
+
+                {/* Section: Notice */}
+                <div className="px-6 py-5 bg-accent-primary/[0.04] border-t border-border-subtle">
+                  <div className="flex items-start gap-3">
+                    <Info size={14} className="text-accent-bright mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-sm text-text-primary mb-2 font-medium">
+                        Once your auction has its first bid, it becomes immutable.
+                      </p>
+                      <p className="text-xs text-text-muted leading-relaxed">
+                        Bidders&apos; deposits are held in a program-derived escrow
+                        vault — neither you, eBidz Labs, nor any admin has
+                        withdrawal rights. Settlement is automatic via Arcium MPC
+                        callback.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {createError && (
+                  <div className="px-6 py-3 border-t border-state-danger/30 bg-state-danger/[0.06] text-xs font-mono text-state-danger">
+                    {createError}
+                  </div>
                 )}
-              </div>
-            </FormSection>
 
-            {/* Section: Schedule */}
-            <FormSection number="03" title="Schedule">
-              <Field label="Deadline" required hint="When sealed bids close.">
-                <Input
-                  type="datetime-local"
-                  value={deadline}
-                  onChange={e => setDeadline(e.target.value)}
-                />
-              </Field>
-            </FormSection>
-
-            {/* Section: Notice */}
-            <div className="px-6 py-5 bg-accent-primary/[0.04] border-t border-border-subtle">
-              <div className="flex items-start gap-3">
-                <Info size={14} className="text-accent-bright mt-0.5 shrink-0" />
-                <div>
-                  <p className="text-sm text-text-primary mb-2 font-medium">
-                    Once your auction has its first bid, it becomes immutable.
-                  </p>
-                  <p className="text-xs text-text-muted leading-relaxed">
-                    Bidders&apos; deposits are held in a program-derived escrow
-                    vault — neither you, eBidz Labs, nor any admin has
-                    withdrawal rights. Settlement is automatic via Arcium MPC
-                    callback.
-                  </p>
+                <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-border-subtle">
+                  <Button type="submit" size="md" disabled={submitting || !deadline || !itemMintInput || itemMintInvalid}>
+                    <Lock size={13} />
+                    {submitting ? 'Signing…' : !publicKey ? 'Connect wallet to launch' : 'Launch auction'}
+                    <ArrowRight size={12} />
+                  </Button>
                 </div>
               </div>
-            </div>
-
-            {createError && (
-              <div className="px-6 py-3 border-t border-state-danger/30 bg-state-danger/[0.06] text-xs font-mono text-state-danger">
-                {createError}
-              </div>
-            )}
-
-            <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-border-subtle">
-              <Button type="submit" size="md" disabled={submitting || !deadline || !itemMintInput || itemMintInvalid}>
-                <Lock size={13} />
-                {submitting ? 'Signing…' : !publicKey ? 'Connect wallet to launch' : 'Launch auction'}
-                <ArrowRight size={12} />
-              </Button>
-            </div>
-          </div>
-          </form>
+            </form>
           )}
         </div>
 
@@ -354,11 +357,10 @@ function TypeOption({
     <button
       type="button"
       onClick={onSelect}
-      className={`relative text-left border p-3 transition-all ${
-        selected
+      className={`relative text-left border p-3 transition-all ${selected
           ? 'border-accent-primary bg-accent-primary/[0.06]'
           : 'border-border-subtle bg-bg-base/40 hover:border-accent-primary/40 hover:bg-accent-primary/[0.04]'
-      }`}
+        }`}
     >
       {selected && (
         <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 bg-accent-bright" />
@@ -382,9 +384,8 @@ function Visibility({
     <div className="flex items-center justify-between text-xs">
       <span className="text-text-secondary">{property}</span>
       <span
-        className={`font-mono text-[10px] uppercase tracking-widest ${
-          visible ? 'text-state-warning' : 'text-state-success'
-        }`}
+        className={`font-mono text-[10px] uppercase tracking-widest ${visible ? 'text-state-warning' : 'text-state-success'
+          }`}
       >
         {visible ? '◉ public' : '◌ sealed'}
       </span>

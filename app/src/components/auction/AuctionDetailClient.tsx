@@ -2,16 +2,15 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
 import {
   Users, Clock, Tag, Hash, ChevronLeft, ExternalLink,
   Lock, Cpu, Database, ShieldCheck, AlertCircle,
 } from 'lucide-react';
-import { getAuctionById, auctionTypeMeta, Auction as MockAuction } from '@/lib/mockData';
 import { useAuction } from '@/hooks/useAuctions';
 import { useClaimRefund, useCloseAuction } from '@/hooks/useAuctionActions';
 import { useWallet } from '@solana/wallet-adapter-react';
-import { shortAddress, LAMPORTS_PER_SOL, formatSol } from '@/lib/format';
+import { shortAddress } from '@/lib/format';
+import { getAuctionMeta } from '@/lib/auctionMeta';
 import { Badge } from '@/components/primitives/Badge';
 import { ArciumBadge } from '@/components/arcium/ArciumBadge';
 import { CountdownTimer } from '@/components/auction/CountdownTimer';
@@ -28,60 +27,16 @@ type Props = {
 export function AuctionDetailClient({ auctionId, isRealPubkey }: Props) {
   const { publicKey } = useWallet();
 
-  // ── Data source: chain or mock ───────────────────────────────────────────
+  // ── Chain data ───────────────────────────────────────────────────────────
   const { auction: chainAuction, loading: chainLoading, refetch } = useAuction(
     isRealPubkey ? auctionId : null,
   );
-  const mockAuction = !isRealPubkey ? getAuctionById(auctionId) : null;
 
   const { close: closeAuction, loading: closing } = useCloseAuction();
   const { claim: claimRefund, loading: claiming, txSig: refundSig } = useClaimRefund();
 
-  // ── Derived view model ───────────────────────────────────────────────────
-  const isChain = isRealPubkey && !!chainAuction;
-  const notFound = !mockAuction && !chainAuction && !chainLoading;
-
-  // Map chain auction status
-  const status: 'active' | 'computing' | 'settled' | 'cancelled' = isChain
-    ? (chainAuction!.status as any)
-    : (mockAuction?.status ?? 'active');
-
-  const deadlineMs = isChain
-    ? chainAuction!.deadlineMs
-    : mockAuction?.deadline ?? Date.now() + 3600_000;
-
-  const bidCount = isChain
-    ? chainAuction!.bidCountN
-    : mockAuction?.bidCount ?? 0;
-
-  const reserveSol = isChain
-    ? chainAuction!.reserveSol
-    : mockAuction?.reservePrice
-      ? mockAuction.reservePrice / LAMPORTS_PER_SOL
-      : null;
-
-  const auctionTypeLabel = isChain
-    ? labelFromType(chainAuction!.auctionType)
-    : mockAuction
-      ? auctionTypeMeta[mockAuction.auctionType].label
-      : 'First-Price';
-
-  // Mock-only fields (image, title, description)
-  const imageUrl = mockAuction?.imageUrl ?? `https://picsum.photos/seed/${auctionId}/1000/1000`;
-  const title = mockAuction?.title ?? shortAddress(auctionId);
-  const description = mockAuction?.description ?? 'Onchain sealed-bid auction powered by Arcium MPC.';
-  const creator = mockAuction?.creator ?? (isChain ? chainAuction!.creator : '');
-  const units = mockAuction?.units ?? 1;
-
-  const settled = status === 'settled';
-  const computing = status === 'computing';
-  const cancelled = status === 'cancelled';
-
-  // ── Crank: can this user close the auction? ──────────────────────────────
-  const pastDeadline = Date.now() > deadlineMs;
-  const canClose = pastDeadline && status === 'active' && isChain;
-
-  if (notFound) {
+  // ── Early exits ──────────────────────────────────────────────────────────
+  if (!isRealPubkey || (!chainAuction && !chainLoading)) {
     return (
       <div className="mx-auto max-w-[1400px] px-6 py-20 text-center">
         <AlertCircle size={32} className="mx-auto mb-4 text-text-faint" />
@@ -95,6 +50,41 @@ export function AuctionDetailClient({ auctionId, isRealPubkey }: Props) {
       </div>
     );
   }
+
+  if (chainLoading && !chainAuction) {
+    return (
+      <div className="mx-auto max-w-[1400px] px-6 py-20 text-center">
+        <span className="inline-block h-3 w-3 rounded-full bg-accent-primary/50 animate-pulse" />
+      </div>
+    );
+  }
+
+  // ── Derived view model ───────────────────────────────────────────────────
+  const status: 'active' | 'computing' | 'settled' | 'cancelled' =
+    chainAuction!.status as any;
+
+  const deadlineMs = chainAuction!.deadlineMs;
+  const bidCount = chainAuction!.bidCountN;
+  const reserveSol = chainAuction!.reserveSol;
+  const auctionTypeLabel = labelFromType(chainAuction!.auctionType);
+
+  const meta = getAuctionMeta(auctionId);
+
+  const imageUrl = meta?.imageUrl || `https://picsum.photos/seed/${auctionId.slice(0, 8)}/1000/1000`;
+  const title = meta?.title || shortAddress(auctionId);
+  const description = meta?.description || 'Onchain sealed-bid auction powered by Arcium MPC.';
+  const creator = chainAuction!.creator;
+  const units = (chainAuction!.auctionType as any).uniformPrice?.units
+    ? Number((chainAuction!.auctionType as any).uniformPrice.units)
+    : 1;
+
+  const settled = status === 'settled';
+  const computing = status === 'computing';
+  const cancelled = status === 'cancelled';
+
+  // ── Crank: can this user close the auction? ──────────────────────────────
+  const pastDeadline = Date.now() > deadlineMs;
+  const canClose = pastDeadline && status === 'active';
 
   return (
     <div className="mx-auto max-w-[1400px] px-6 py-8">
@@ -209,26 +199,22 @@ export function AuctionDetailClient({ auctionId, isRealPubkey }: Props) {
         <aside className="lg:sticky lg:top-20 self-start space-y-4">
           {settled ? (
             <ResultReveal
-              winner={isChain ? (chainAuction!.winner ?? '') : (mockAuction?.winner ?? '')}
+              winner={chainAuction!.winner ?? ''}
               clearingPrice={
-                isChain
-                  ? (chainAuction!.clearingPrice ? Number(BigInt(chainAuction!.clearingPrice)) : 0)
-                  : (mockAuction?.clearingPrice ?? 0)
+                chainAuction!.clearingPrice ? Number(BigInt(chainAuction!.clearingPrice)) : 0
               }
-              isWinner={isChain ? chainAuction!.winner === publicKey?.toString() : false}
-              auctionPubkey={isRealPubkey ? auctionId : undefined}
+              isWinner={chainAuction!.winner === publicKey?.toString()}
+              auctionPubkey={auctionId}
             />
           ) : cancelled ? (
             <div className="border border-border-subtle bg-bg-surface p-5">
               <p className="font-display text-lg font-bold mb-2">Auction cancelled</p>
               <p className="text-text-secondary text-sm mb-4">
-                {isRealPubkey && publicKey ? (
-                  'Your deposit refund is available.'
-                ) : (
-                  'The reserve price was not met or the creator cancelled.'
-                )}
+                {publicKey
+                  ? 'Your deposit refund is available.'
+                  : 'The reserve price was not met or the creator cancelled.'}
               </p>
-              {isRealPubkey && publicKey && (
+              {publicKey && (
                 <Button
                   size="sm"
                   onClick={() => claimRefund(auctionId)}
@@ -297,7 +283,7 @@ export function AuctionDetailClient({ auctionId, isRealPubkey }: Props) {
                   </div>
                 ) : null}
                 <BidForm
-                  auctionPubkey={isRealPubkey ? auctionId : 'mock_pubkey_placeholder'}
+                  auctionPubkey={auctionId}
                   minBid={reserveSol ?? 0}
                 />
               </div>
@@ -318,7 +304,7 @@ export function AuctionDetailClient({ auctionId, isRealPubkey }: Props) {
               </a>
             </div>
             <div className="divide-y divide-border-subtle">
-              <Ref label="Mint" value={mockAuction ? 'So11111…1112' : shortAddress(auctionId)} />
+              <Ref label="Mint" value={shortAddress(auctionId)} />
               <Ref label="Units" value={units.toString()} />
               {reserveSol && <Ref label="Reserve" value={`${reserveSol} SOL`} />}
             </div>

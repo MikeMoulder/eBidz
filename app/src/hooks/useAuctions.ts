@@ -6,7 +6,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useConnection } from '@solana/wallet-adapter-react';
-import { PublicKey, GetProgramAccountsConfig, MemcmpFilter } from '@solana/web3.js';
+import { PublicKey, GetProgramAccountsConfig } from '@solana/web3.js';
 import { BorshAccountsCoder } from '@coral-xyz/anchor';
 import { EBIDZ_IDL, EBIDZ_PROGRAM_ID, AuctionAccount, AuctionStatus } from '@/lib/idl';
 import { LAMPORTS_PER_SOL } from '@/lib/format';
@@ -33,21 +33,26 @@ function decodeAuction(data: Buffer): AuctionAccount | null {
   }
 }
 
+/** Anchor returns enum variants as `{ active: {} }` objects; normalize to strings. */
+function normalizeStatus(s: any): AuctionStatus {
+  if (typeof s === 'string') return s as AuctionStatus;
+  return Object.keys(s)[0] as AuctionStatus;
+}
+
 export function useAuctions(filter?: { status?: AuctionStatus }) {
   const { connection } = useConnection();
   const [auctions, setAuctions] = useState<LiveAuction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Extract primitive to avoid stale closure over the filter object
+  const filterStatus = filter?.status;
+
   const fetchAuctions = useCallback(async () => {
     try {
       const programId = new PublicKey(EBIDZ_PROGRAM_ID);
       const accounts = await connection.getProgramAccounts(programId, {
         commitment: 'confirmed',
-        filters: [
-          // Discriminator for Auction accounts (first 8 bytes)
-          { dataSize: 8 + 200 }, // approximate — actual size ~181 bytes
-        ],
       } as GetProgramAccountsConfig);
 
       const decoded: LiveAuction[] = [];
@@ -63,13 +68,19 @@ export function useAuctions(filter?: { status?: AuctionStatus }) {
 
         const live: LiveAuction = {
           ...parsed,
+          // Anchor returns PublicKey objects for pubkey fields; normalize to strings
+          creator: parsed.creator?.toString?.() ?? parsed.creator,
+          itemMint: parsed.itemMint?.toString?.() ?? parsed.itemMint,
+          winner: parsed.winner ? (parsed.winner as any).toString?.() ?? parsed.winner : null,
+          // Anchor returns enum objects like { active: {} }; normalize to strings
+          status: normalizeStatus(parsed.status),
           publicKey: pubkey.toString(),
           deadlineMs,
           reserveSol,
           bidCountN,
         };
 
-        if (!filter?.status || statusMatches(live.status, filter.status)) {
+        if (!filterStatus || statusMatches(live.status, filterStatus)) {
           decoded.push(live);
         }
       }
@@ -82,7 +93,7 @@ export function useAuctions(filter?: { status?: AuctionStatus }) {
     } finally {
       setLoading(false);
     }
-  }, [connection, filter?.status]);
+  }, [connection, filterStatus]);
 
   useEffect(() => {
     fetchAuctions();
@@ -111,7 +122,19 @@ export function useAuction(pubkeyStr: string | null) {
       const reserveSol = parsed.reservePrice
         ? Number(BigInt(parsed.reservePrice)) / LAMPORTS_PER_SOL
         : null;
-      setAuction({ ...parsed, publicKey: pubkeyStr, deadlineMs, reserveSol, bidCountN: Number(BigInt(parsed.bidCount)) });
+      setAuction({
+        ...parsed,
+        // Normalize PublicKey objects → strings
+        creator: parsed.creator?.toString?.() ?? parsed.creator,
+        itemMint: parsed.itemMint?.toString?.() ?? parsed.itemMint,
+        winner: parsed.winner ? (parsed.winner as any).toString?.() ?? parsed.winner : null,
+        // Normalize Anchor enum object → string
+        status: normalizeStatus(parsed.status),
+        publicKey: pubkeyStr,
+        deadlineMs,
+        reserveSol,
+        bidCountN: Number(BigInt(parsed.bidCount)),
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Fetch error');
     } finally {

@@ -1,5 +1,5 @@
 import { AuctionCard } from './AuctionCard';
-import type { Auction } from '@/lib/mockData';
+import type { Auction } from '@/lib/types';
 
 export function AuctionGrid({ auctions }: { auctions: Auction[] }) {
   if (auctions.length === 0) {

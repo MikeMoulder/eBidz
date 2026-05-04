@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { Github, Twitter, BookOpen, Globe } from 'lucide-react';
-import { Logo } from '@/components/Logo';
 
 export function Footer() {
   return (
@@ -10,7 +9,9 @@ export function Footer() {
       <div className="mx-auto max-w-[1400px] px-6 py-14">
         <div className="grid grid-cols-2 md:grid-cols-12 gap-8">
           <div className="col-span-2 md:col-span-5">
-            <Logo size={28} />
+            <span className="font-display text-[22px] font-bold tracking-tightest leading-none">
+              ebidz
+            </span>
             <p className="mt-4 text-sm text-text-muted max-w-sm leading-relaxed">
               Sealed-bid auctions on Solana. Bids stay encrypted under Arcium MPC
               until settlement — fair price discovery without front-running, MEV,

@@ -8,6 +8,7 @@ import { PublicKey, SystemProgram } from '@solana/web3.js';
 import { BN } from '@coral-xyz/anchor';
 import { useProgramClient } from './useProgramClient';
 import { auctionPda, vaultPda } from '@/lib/pda';
+import { saveAuctionMeta } from '@/lib/auctionMeta';
 
 export type CreateAuctionParams = {
   itemMint: string;
@@ -15,6 +16,10 @@ export type CreateAuctionParams = {
   units?: number;          // only for uniform
   reserveSol?: number;
   deadlineUnixSeconds: number;
+  // Off-chain metadata (stored in localStorage)
+  title?: string;
+  description?: string;
+  imageUrl?: string;
 };
 
 export type CreateStatus = 'idle' | 'signing' | 'confirming' | 'done' | 'error';
@@ -53,8 +58,8 @@ export function useCreateAuction() {
           params.auctionType === 'first-price'
             ? { sealedBidFirstPrice: {} }
             : params.auctionType === 'vickrey'
-            ? { vickrey: {} }
-            : { uniformPrice: { units: new BN((params.units ?? 1).toString()) } };
+              ? { vickrey: {} }
+              : { uniformPrice: { units: new BN((params.units ?? 1).toString()) } };
 
         const reserveLamports = params.reserveSol
           ? new BN(Math.round(params.reserveSol * 1e9).toString())
@@ -78,6 +83,14 @@ export function useCreateAuction() {
 
         setAuctionKey(auction.toString());
         setStatus('done');
+
+        // Persist off-chain metadata locally
+        saveAuctionMeta(auction.toString(), {
+          title: params.title ?? '',
+          description: params.description ?? '',
+          imageUrl: params.imageUrl ?? '',
+        });
+
         return { sig, auctionKey: auction.toString() };
       } catch (e) {
         console.error('[useCreateAuction] error:', e);

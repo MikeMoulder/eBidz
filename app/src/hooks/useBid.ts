@@ -63,11 +63,19 @@ export function useBid(): UseBidReturn {
         const publicKey = x25519.getPublicKey(privateKey);
 
         // ── Step 2: Fetch MXE public key ─────────────────────────────────
-        const mxePublicKey = await getMXEPublicKey(
-          provider as any,
-          program.programId,
-        );
-        if (!mxePublicKey) throw new Error('Failed to fetch MXE public key');
+        let mxePublicKey: Uint8Array | null;
+        try {
+          mxePublicKey = await getMXEPublicKey(
+            provider as any,
+            program.programId,
+          );
+        } catch (e) {
+          throw new Error(
+            'Arcium MXE has not been initialized for this program. ' +
+            'Run `arcium init` then `node scripts/init-comp-def.mjs` before submitting bids.',
+          );
+        }
+        if (!mxePublicKey) throw new Error('Arcium MXE public key is not set');
 
         // ── Step 3: Shared secret + cipher ───────────────────────────────
         const sharedSecret = x25519.getSharedSecret(privateKey, mxePublicKey);
