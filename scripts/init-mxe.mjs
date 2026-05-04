@@ -29,7 +29,7 @@ const {
 
 // ── Config ──────────────────────────────────────────────────────────────────
 const CLUSTER_OFFSET = 456; // from Arcium.toml [clusters.devnet] offset
-const EBIDZ_PROG_ID  = new PublicKey('4U9HFuutY2KJdrw3AFsQhf3Kvp6BvVjaGBmDB1bQAGBU');
+const EBIDZ_PROG_ID = new PublicKey('4U9HFuutY2KJdrw3AFsQhf3Kvp6BvVjaGBmDB1bQAGBU');
 const RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com';
 const WALLET_PATH = process.env.SOLANA_WALLET_PATH
   || resolve(process.env.HOME || '', '.config/solana/id.json');
@@ -66,6 +66,7 @@ const part1Done = !!existingRecovery;
 console.log('Part 1 already done:', part1Done);
 
 // ── Build Anchor provider ─────────────────────────────────────────────────────
+const walletAdapter = {
   publicKey: payer.publicKey,
   signTransaction: async (tx) => {
     tx.partialSign(payer);
@@ -85,10 +86,10 @@ const provider = new anchor.AnchorProvider(connection, walletAdapter, {
 // Use current finalized slot as a seed for unique offsets (slot is monotonically
 // increasing, so collisions are extremely unlikely).
 const slot = BigInt(await connection.getSlot('finalized'));
-const keygenOffset          = new anchor.BN(slot.toString());
+const keygenOffset = new anchor.BN(slot.toString());
 const keyRecoveryInitOffset = new anchor.BN((slot + 1n).toString());
 // lutOffset must be a recent slot — the ALT program requires it as its creation slot.
-const lutOffset             = new anchor.BN(slot.toString());
+const lutOffset = new anchor.BN(slot.toString());
 
 console.log(`\nCluster offset:          ${CLUSTER_OFFSET}`);
 console.log(`Keygen offset:           ${keygenOffset.toString()}`);

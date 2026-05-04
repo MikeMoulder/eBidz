@@ -28,25 +28,25 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const appModules = resolve(__dirname, '../app/node_modules');
 
 const { PublicKey, Connection, Keypair, Transaction, TransactionInstruction,
-        SystemProgram, sendAndConfirmTransaction } =
+  SystemProgram, sendAndConfirmTransaction } =
   await import(`${appModules}/@solana/web3.js/lib/index.browser.esm.js`).catch(() =>
-    import(`${appModules}/@solana/web3.js`));
+    import(`${appModules}/@solana/web3.js/lib/index.cjs.js`));
 
 // ── constants ────────────────────────────────────────────────────────────────
-const ARCIUM_PROG_ID   = new PublicKey('Arcj82pX7HxYKLR92qvgZUAd7vGS1k4hQvAFcPATFdEQ');
-const EBIDZ_PROG_ID    = new PublicKey('4U9HFuutY2KJdrw3AFsQhf3Kvp6BvVjaGBmDB1bQAGBU');
-const ALT_PROG_ID      = new PublicKey('AddressLookupTab1e1111111111111111111111111');
-const SYSTEM_PROG_ID   = SystemProgram.programId;
+const ARCIUM_PROG_ID = new PublicKey('Arcj82pX7HxYKLR92qvgZUAd7vGS1k4hQvAFcPATFdEQ');
+const EBIDZ_PROG_ID = new PublicKey('4U9HFuutY2KJdrw3AFsQhf3Kvp6BvVjaGBmDB1bQAGBU');
+const ALT_PROG_ID = new PublicKey('AddressLookupTab1e1111111111111111111111111');
+const SYSTEM_PROG_ID = SystemProgram.programId;
 
 // comp_def_offset = SHA256(name)[0:4] as u32-LE
 const OFFSET_FIRST_PRICE = 2844974894; // sha256("first_price_winner")
-const OFFSET_VICKREY     = 1136495498; // sha256("vickrey_winner")
-const OFFSET_UNIFORM     = 4075495356; // sha256("uniform_price_winner")
+const OFFSET_VICKREY = 1136495498; // sha256("vickrey_winner")
+const OFFSET_UNIFORM = 4075495356; // sha256("uniform_price_winner")
 
 // Anchor instruction discriminators (sha256("global:<ix_name>")[0:8])
-const DISC_FIRST  = Buffer.from([72,178,88,184,132,141,108,186]);
-const DISC_VICKREY= Buffer.from([58,24,223,249,137,105,54,49]);
-const DISC_UNIFORM= Buffer.from([39,192,143,34,248,46,189,197]);
+const DISC_FIRST = Buffer.from([72, 178, 88, 184, 132, 141, 108, 186]);
+const DISC_VICKREY = Buffer.from([58, 24, 223, 249, 137, 105, 54, 49]);
+const DISC_UNIFORM = Buffer.from([39, 192, 143, 34, 248, 46, 189, 197]);
 
 // ── config from env ──────────────────────────────────────────────────────────
 const CIRCUIT_BASE_URL = process.env.CIRCUIT_STORAGE_BASE_URL
@@ -111,7 +111,7 @@ async function fetchCircuit(name) {
   if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status} ${res.statusText}`);
   const bytes = Buffer.from(await res.arrayBuffer());
   const hash = sha256(bytes);
-  console.log(`  Size: ${bytes.length} bytes  SHA256: ${hash.toString('hex').slice(0,16)}...`);
+  console.log(`  Size: ${bytes.length} bytes  SHA256: ${hash.toString('hex').slice(0, 16)}...`);
   return { bytes, hash, len: bytes.length };
 }
 
@@ -124,16 +124,18 @@ async function initCompDef(connection, payer, circuitName, offset, discriminator
   const circuitUrl = `${CIRCUIT_BASE_URL.replace(/\/$/, '')}/${circuitName}.arcis`;
 
   // Derive accounts
-  const mxeAccount     = mxeAcc(EBIDZ_PROG_ID);
+  const mxeAccount = mxeAcc(EBIDZ_PROG_ID);
   const compDefAccount = compDefAcc(EBIDZ_PROG_ID, offset);
 
-  // Get current slot for LUT derivation
-  const slot = BigInt(await connection.getSlot('finalized'));
-  const lutAccount = mxeLutAcc(EBIDZ_PROG_ID, slot);
+  // Read LUT slot from MXE account data (keygen_offset at byte 13, u64 LE)
+  const mxeInfo = await connection.getAccountInfo(mxeAccount);
+  if (!mxeInfo) throw new Error('MXE account not found — run node scripts/init-mxe.mjs first');
+  const lutOffset = mxeInfo.data.readBigUInt64LE(13);
+  const lutAccount = mxeLutAcc(EBIDZ_PROG_ID, lutOffset);
 
   console.log(`  mxe_account:     ${mxeAccount.toBase58()}`);
   console.log(`  comp_def_account: ${compDefAccount.toBase58()}`);
-  console.log(`  lut (slot ${slot}): ${lutAccount.toBase58()}`);
+  console.log(`  lut (offset ${lutOffset}): ${lutAccount.toBase58()}`);
 
   // Encode instruction data
   const data = Buffer.concat([discriminator, encodeInitArgs(circuitUrl, circuitHash)]);
@@ -142,12 +144,12 @@ async function initCompDef(connection, payer, circuitName, offset, discriminator
     programId: EBIDZ_PROG_ID,
     keys: [
       { pubkey: payer.publicKey, isSigner: true, isWritable: true },    // payer
-      { pubkey: mxeAccount,      isSigner: false, isWritable: false },   // mxe_account
-      { pubkey: compDefAccount,  isSigner: false, isWritable: true },    // comp_def_account
-      { pubkey: lutAccount,      isSigner: false, isWritable: true },    // address_lookup_table
-      { pubkey: ALT_PROG_ID,     isSigner: false, isWritable: false },   // lut_program
-      { pubkey: SYSTEM_PROG_ID,  isSigner: false, isWritable: false },   // system_program
-      { pubkey: ARCIUM_PROG_ID,  isSigner: false, isWritable: false },   // arcium_program
+      { pubkey: mxeAccount, isSigner: false, isWritable: true },    // mxe_account
+      { pubkey: compDefAccount, isSigner: false, isWritable: true },    // comp_def_account
+      { pubkey: lutAccount, isSigner: false, isWritable: true },    // address_lookup_table
+      { pubkey: ALT_PROG_ID, isSigner: false, isWritable: false },   // lut_program
+      { pubkey: SYSTEM_PROG_ID, isSigner: false, isWritable: false },   // system_program
+      { pubkey: ARCIUM_PROG_ID, isSigner: false, isWritable: false },   // arcium_program
     ],
     data,
   });
@@ -185,9 +187,9 @@ async function initCompDef(connection, payer, circuitName, offset, discriminator
 
   // Initialize all 3 computation definitions
   const circuits = [
-    { name: 'first_price_winner', offset: OFFSET_FIRST_PRICE, disc: DISC_FIRST  },
-    { name: 'vickrey_winner',     offset: OFFSET_VICKREY,     disc: DISC_VICKREY },
-    { name: 'uniform_price_winner', offset: OFFSET_UNIFORM,   disc: DISC_UNIFORM },
+    { name: 'first_price_winner', offset: OFFSET_FIRST_PRICE, disc: DISC_FIRST },
+    { name: 'vickrey_winner', offset: OFFSET_VICKREY, disc: DISC_VICKREY },
+    { name: 'uniform_price_winner', offset: OFFSET_UNIFORM, disc: DISC_UNIFORM },
   ];
 
   for (const c of circuits) {
