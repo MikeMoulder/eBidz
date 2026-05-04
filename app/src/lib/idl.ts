@@ -119,6 +119,7 @@ export const EBIDZ_IDL = {
           { name: 'winnerCiphertext', type: { array: ['u8', 32] } },
           { name: 'priceCiphertext', type: { array: ['u8', 32] } },
           { name: 'nonce', type: 'u128' },
+          { name: 'encryptionKey', type: { array: ['u8', 32] } },
         ],
       },
     },
@@ -257,6 +258,18 @@ export const EBIDZ_IDL = {
         { name: 'auction', writable: true },
       ],
       args: [],
+    },
+    {
+      name: 'revealWinner',
+      discriminator: [234, 209, 237, 109, 16, 196, 64, 254],
+      accounts: [
+        { name: 'caller', signer: true },
+        { name: 'auction', writable: true },
+      ],
+      args: [
+        { name: 'winner', type: 'pubkey' },
+        { name: 'clearingPrice', type: 'u64' },
+      ],
     },
   ],
   accounts: [

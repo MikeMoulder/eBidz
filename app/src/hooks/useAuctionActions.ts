@@ -21,6 +21,13 @@ import {
   getCompDefAccOffset,
   getArciumEnv,
 } from '@arcium-hq/client';
+import { AuctionType } from '@/lib/idl';
+
+function circuitNameForType(auctionType: AuctionType): string {
+  if ('sealedBidFirstPrice' in auctionType) return 'first_price_winner';
+  if ('vickrey' in auctionType) return 'vickrey_winner';
+  return 'uniform_price_winner';
+}
 
 export function useCloseAuction() {
   const client = useProgramClient();
@@ -29,7 +36,7 @@ export function useCloseAuction() {
   const [txSig, setTxSig] = useState<string | null>(null);
 
   const close = useCallback(
-    async (auctionPubkey: string, auctionCreator: string, auctionDeadline: number) => {
+    async (auctionPubkey: string, auctionCreator: string, auctionDeadline: number, auctionType: AuctionType) => {
       if (!client) { setError('Wallet not connected'); return; }
       const { program, wallet } = client;
 
@@ -57,7 +64,7 @@ export function useCloseAuction() {
             executingPool: getExecutingPoolAccAddress(arciumEnv.arciumClusterOffset),
             compDefAccount: getCompDefAccAddress(
               program.programId,
-              getCompDefAccOffset('first_price_winner') as unknown as number,
+              getCompDefAccOffset(circuitNameForType(auctionType)) as unknown as number,
             ),
             arciumProgram: new PublicKey('ARCiUMqkMFGzCkNNTAMvTv1CsHKGjXY5g3WUMhJ5Wxd5'),
             systemProgram: SystemProgram.programId,

@@ -1,0 +1,20 @@
+{
+  "name": "ebidz-tests",
+  "version": "1.0.0",
+  "scripts": {
+    "test": "ts-mocha -p ./tsconfig.json --timeout 120000 'ebidz.test.ts'"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.31.0",
+    "@solana/web3.js": "^1.98.4"
+  },
+  "devDependencies": {
+    "@types/chai": "^4",
+    "@types/mocha": "^10",
+    "@types/node": "^20",
+    "chai": "^4",
+    "mocha": "^10",
+    "ts-mocha": "^10",
+    "typescript": "^5"
+  }
+}

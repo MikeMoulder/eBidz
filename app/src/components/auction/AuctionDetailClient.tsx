@@ -57,14 +57,14 @@ export function AuctionDetailClient({ auctionId, isRealPubkey }: Props) {
   const reserveSol = isChain
     ? chainAuction!.reserveSol
     : mockAuction?.reservePrice
-    ? mockAuction.reservePrice / LAMPORTS_PER_SOL
-    : null;
+      ? mockAuction.reservePrice / LAMPORTS_PER_SOL
+      : null;
 
   const auctionTypeLabel = isChain
     ? labelFromType(chainAuction!.auctionType)
     : mockAuction
-    ? auctionTypeMeta[mockAuction.auctionType].label
-    : 'First-Price';
+      ? auctionTypeMeta[mockAuction.auctionType].label
+      : 'First-Price';
 
   // Mock-only fields (image, title, description)
   const imageUrl = mockAuction?.imageUrl ?? `https://picsum.photos/seed/${auctionId}/1000/1000`;
@@ -118,14 +118,14 @@ export function AuctionDetailClient({ auctionId, isRealPubkey }: Props) {
                 {status === 'active' && <span className="h-1 w-1 bg-state-success animate-pulse" />}
                 {status === 'active' ? 'Live'
                   : status === 'computing' ? 'Computing'
-                  : status === 'settled' ? 'Settled'
-                  : 'Cancelled'}
+                    : status === 'settled' ? 'Settled'
+                      : 'Cancelled'}
               </Badge>
               <span className="font-mono text-[10px] uppercase tracking-widest text-text-faint">
                 {status === 'active' ? 'Accepting sealed bids'
                   : status === 'computing' ? 'MPC in progress…'
-                  : status === 'settled' ? 'Closed onchain'
-                  : 'Auction cancelled'}
+                    : status === 'settled' ? 'Closed onchain'
+                      : 'Auction cancelled'}
               </span>
             </div>
             <div className="hidden sm:flex items-center gap-3 font-mono text-[10px] uppercase tracking-widest text-text-faint">
@@ -209,8 +209,13 @@ export function AuctionDetailClient({ auctionId, isRealPubkey }: Props) {
         <aside className="lg:sticky lg:top-20 self-start space-y-4">
           {settled ? (
             <ResultReveal
-              winner={mockAuction?.winner ?? ''}
-              clearingPrice={mockAuction?.clearingPrice ?? 0}
+              winner={isChain ? (chainAuction!.winner ?? '') : (mockAuction?.winner ?? '')}
+              clearingPrice={
+                isChain
+                  ? (chainAuction!.clearingPrice ? Number(BigInt(chainAuction!.clearingPrice)) : 0)
+                  : (mockAuction?.clearingPrice ?? 0)
+              }
+              isWinner={isChain ? chainAuction!.winner === publicKey?.toString() : false}
               auctionPubkey={isRealPubkey ? auctionId : undefined}
             />
           ) : cancelled ? (
@@ -283,7 +288,7 @@ export function AuctionDetailClient({ auctionId, isRealPubkey }: Props) {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => closeAuction(auctionId, creator, deadlineMs / 1000)}
+                      onClick={() => closeAuction(auctionId, creator, deadlineMs / 1000, chainAuction!.auctionType)}
                       disabled={closing}
                       className="w-full"
                     >

@@ -45,6 +45,7 @@ fn validate_callback_ixs(
 }
 
 #[derive(Accounts)]
+#[instruction(deadline: i64)]
 pub struct CreateAuction<'info> {
     #[account(mut)]
     pub creator: Signer<'info>,
@@ -53,7 +54,7 @@ pub struct CreateAuction<'info> {
         init,
         payer = creator,
         space = Auction::LEN,
-        seeds = [b"auction", creator.key().as_ref(), item_mint.key().as_ref()],
+        seeds = [b"auction", creator.key().as_ref(), &deadline.to_le_bytes()],
         bump,
     )]
     pub auction: Account<'info, Auction>,
@@ -62,13 +63,11 @@ pub struct CreateAuction<'info> {
     pub item_mint: UncheckedAccount<'info>,
 
     #[account(
-        init,
-        payer = creator,
-        space = 0,
+        mut,
         seeds = [b"vault", auction.key().as_ref()],
         bump,
     )]
-    /// CHECK: PDA vault owned by the system program; used only for SOL transfers.
+    /// CHECK: PDA vault for SOL escrow. Not initialized here; receives lamports on first bid.
     pub vault: UncheckedAccount<'info>,
 
     pub system_program: Program<'info, System>,
@@ -507,6 +506,16 @@ pub mod ebidz {
         Ok(())
     }
 
+    /// Permissionless post-settlement reveal.
+    /// Anyone who decrypted the AuctionSettled event ciphertexts submits the
+    /// plaintext winner pubkey and clearing price here.
+    pub fn reveal_winner(ctx: Context<RevealWinner>, winner: Pubkey, clearing_price: u64) -> Result<()> {
+        let auction = &mut ctx.accounts.auction;
+        auction.winner = Some(winner);
+        auction.clearing_price = Some(clearing_price);
+        Ok(())
+    }
+
     /// Liveness fallback — permissionlessly cancel if MPC hasn't responded.
     pub fn force_cancel(ctx: Context<ForceCancel>) -> Result<()> {
         let auction = &mut ctx.accounts.auction;
@@ -563,8 +572,27 @@ fn settle_from_output(
         winner_ciphertext: o.ciphertexts[0],
         price_ciphertext: o.ciphertexts[1],
         nonce: o.nonce,
+        encryption_key: o.encryption_key,
     });
     Ok(())
+}
+
+// ─── reveal_winner accounts ─────────────────────────────────────────────────
+// Permissionless: the encrypted result is public in the AuctionSettled event.
+// Anyone who decrypts it (using the emitted encryption_key + nonce + RescueCipher)
+// can submit the plaintext winner + clearing_price.
+#[derive(Accounts)]
+pub struct RevealWinner<'info> {
+    pub caller: Signer<'info>,
+
+    #[account(
+        mut,
+        seeds = [b"auction", auction.creator.as_ref(), &auction.deadline.to_le_bytes()],
+        bump = auction.bump,
+        constraint = auction.status == AuctionStatus::Settled @ EbidzError::InvalidAuctionState,
+        constraint = auction.winner.is_none() @ EbidzError::InvalidAuctionState,
+    )]
+    pub auction: Account<'info, Auction>,
 }
 
 fn compute_first_price_callback_ix(
@@ -931,11 +959,13 @@ impl<'info> arcium_anchor::traits::InitCompDefAccs<'info> for InitUniformCompDef
 #[event]
 pub struct AuctionSettled {
     pub auction: Pubkey,
-    /// Encrypted winner pubkey from MPC circuit.
+    /// Encrypted winner index from MPC circuit.
     pub winner_ciphertext: [u8; 32],
     /// Encrypted clearing price.
     pub price_ciphertext: [u8; 32],
     pub nonce: u128,
+    /// X25519 ephemeral pubkey for decrypting the ciphertexts.
+    pub encryption_key: [u8; 32],
 }
 
 #[event]
