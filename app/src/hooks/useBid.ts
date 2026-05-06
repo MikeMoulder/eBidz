@@ -16,7 +16,7 @@ import { BN } from '@coral-xyz/anchor';
 import { RescueCipher, x25519, getMXEPublicKey } from '@arcium-hq/client';
 import { randomBytes } from 'crypto';
 import { useProgramClient } from './useProgramClient';
-import { bidPda, vaultPda } from '@/lib/pda';
+import { bidPda, vaultPda, bidsDataPda } from '@/lib/pda';
 
 export type BidStatus =
   | 'idle'
@@ -95,6 +95,7 @@ export function useBid(): UseBidReturn {
         const auctionKey = new PublicKey(auctionPubkey);
         const [bidKey] = bidPda(auctionKey, wallet.publicKey!);
         const [vaultKey] = vaultPda(auctionKey);
+        const [bidsDataKey] = bidsDataPda(auctionKey);
 
         const depositLamports = Math.round(depositSol * WEB3_LAMPORTS);
         const nonceU128 = deserializeLE128(nonce);
@@ -110,6 +111,7 @@ export function useBid(): UseBidReturn {
             bidder: wallet.publicKey!,
             auction: auctionKey,
             bid: bidKey,
+            bidsData: bidsDataKey,
             vault: vaultKey,
             systemProgram: SystemProgram.programId,
           })

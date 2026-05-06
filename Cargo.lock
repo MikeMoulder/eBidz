@@ -1230,6 +1230,7 @@ dependencies = [
  "anchor-spl 0.31.1",
  "arcium-anchor",
  "arcium-client",
+ "bytemuck",
 ]
 
 [[package]]

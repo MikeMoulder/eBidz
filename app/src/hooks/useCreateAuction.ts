@@ -7,7 +7,7 @@ import { useState, useCallback } from 'react';
 import { PublicKey, SystemProgram } from '@solana/web3.js';
 import { BN } from '@coral-xyz/anchor';
 import { useProgramClient } from './useProgramClient';
-import { auctionPda, vaultPda } from '@/lib/pda';
+import { auctionPda, vaultPda, bidsDataPda } from '@/lib/pda';
 import { saveAuctionMeta } from '@/lib/auctionMeta';
 
 export type CreateAuctionParams = {
@@ -32,7 +32,7 @@ export function useCreateAuction() {
 
   const create = useCallback(
     async (params: CreateAuctionParams) => {
-      if (!client) { setError('Wallet not connected'); setStatus('error'); return; }
+      if (!client) { setError('Wallet not connected — please connect your wallet and try again'); setStatus('error'); return; }
       const { program, wallet } = client;
 
       try {
@@ -52,6 +52,7 @@ export function useCreateAuction() {
         const deadlineSecs = BigInt(params.deadlineUnixSeconds);
         const [auction] = auctionPda(wallet.publicKey!, deadlineSecs);
         const [vault] = vaultPda(auction);
+        const [bidsData] = bidsDataPda(auction);
 
         // Map UI type → onchain enum
         const auctionTypeArg =
@@ -75,6 +76,7 @@ export function useCreateAuction() {
           .accounts({
             creator: wallet.publicKey!,
             auction,
+            bidsData,
             itemMint: itemMintKey,
             vault,
             systemProgram: SystemProgram.programId,

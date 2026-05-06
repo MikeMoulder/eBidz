@@ -20,6 +20,14 @@ export default function CreateAuctionPage() {
   const [description, setDescription] = useState('');
   const [itemMint, setItemMint] = useState('');
   const [imageUrl, setImageUrl] = useState('');
+
+  /** Upgrade http:// IPFS gateway URLs to https:// at submission time. */
+  function normalizeImageUrl(raw: string): string | undefined {
+    const trimmed = raw.trim();
+    if (!trimmed) return undefined;
+    // Force https for common IPFS gateways that may return http URLs
+    return trimmed.replace(/^http:\/\/((?:[^/]+\.)?ipfs\.(?:dweb\.link|nftstorage\.link|io))/, 'https://$1');
+  }
   const [auctionType, setAuctionType] = useState<'first-price' | 'vickrey' | 'uniform'>('first-price');
   const [units, setUnits] = useState('1');
   const [reserveSol, setReserveSol] = useState('');
@@ -44,7 +52,7 @@ export default function CreateAuctionPage() {
       deadlineUnixSeconds: deadlineUnix,
       title: title.trim() || undefined,
       description: description.trim() || undefined,
-      imageUrl: imageUrl.trim() || undefined,
+      imageUrl: normalizeImageUrl(imageUrl),
     });
 
     if (result?.auctionKey) {
@@ -358,8 +366,8 @@ function TypeOption({
       type="button"
       onClick={onSelect}
       className={`relative text-left border p-3 transition-all ${selected
-          ? 'border-accent-primary bg-accent-primary/[0.06]'
-          : 'border-border-subtle bg-bg-base/40 hover:border-accent-primary/40 hover:bg-accent-primary/[0.04]'
+        ? 'border-accent-primary bg-accent-primary/[0.06]'
+        : 'border-border-subtle bg-bg-base/40 hover:border-accent-primary/40 hover:bg-accent-primary/[0.04]'
         }`}
     >
       {selected && (

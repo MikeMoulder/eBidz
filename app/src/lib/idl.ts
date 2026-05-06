@@ -123,8 +123,39 @@ export const EBIDZ_IDL = {
         ],
       },
     },
+    {
+      name: 'BidsData',
+      type: {
+        kind: 'struct',
+        fields: [
+          { name: 'sharedPubkey', type: { array: ['u8', 32] } },
+          { name: 'noncePadded', type: { array: ['u8', 32] } },
+          { name: 'ciphertexts', type: { array: ['u8', 8192] } },
+        ],
+      },
+    },
+    {
+      name: 'ArciumSignerAccount',
+      type: {
+        kind: 'struct',
+        fields: [
+          { name: 'bump', type: 'u8' },
+        ],
+      },
+    },
   ],
   instructions: [
+    // ── One-time setup ────────────────────────────────────────────────────────
+    {
+      name: 'initSignPda',
+      discriminator: [102, 179, 4, 195, 198, 41, 211, 183],
+      accounts: [
+        { name: 'payer', writable: true, signer: true },
+        { name: 'signPdaAccount', writable: true },
+        { name: 'systemProgram' },
+      ],
+      args: [],
+    },
     // ── Computation-definition initializers (called once post-deploy) ───────
     {
       name: 'initFirstPriceCompDef',
@@ -184,6 +215,7 @@ export const EBIDZ_IDL = {
       accounts: [
         { name: 'creator', writable: true, signer: true },
         { name: 'auction', writable: true },
+        { name: 'bidsData', writable: true },
         { name: 'itemMint' },
         { name: 'vault', writable: true },
         { name: 'systemProgram' },
@@ -202,6 +234,7 @@ export const EBIDZ_IDL = {
         { name: 'bidder', writable: true, signer: true },
         { name: 'auction', writable: true },
         { name: 'bid', writable: true },
+        { name: 'bidsData', writable: true },
         { name: 'vault', writable: true },
         { name: 'systemProgram' },
       ],
@@ -218,12 +251,16 @@ export const EBIDZ_IDL = {
       accounts: [
         { name: 'payer', writable: true, signer: true },
         { name: 'auction', writable: true },
+        { name: 'bidsData', writable: true },
         { name: 'mxeAccount' },
-        { name: 'clusterAccount' },
-        { name: 'computationAccount', writable: true },
+        { name: 'signPdaAccount', writable: true },
         { name: 'mempoolAccount', writable: true },
         { name: 'executingPool', writable: true },
+        { name: 'computationAccount', writable: true },
         { name: 'compDefAccount' },
+        { name: 'clusterAccount', writable: true },
+        { name: 'poolAccount', writable: true },
+        { name: 'clockAccount', writable: true },
         { name: 'arciumProgram' },
         { name: 'systemProgram' },
       ],
@@ -280,6 +317,14 @@ export const EBIDZ_IDL = {
     {
       name: 'Bid',
       discriminator: [143, 246, 48, 245, 42, 145, 180, 88],
+    },
+    {
+      name: 'BidsData',
+      discriminator: [173, 20, 64, 215, 134, 149, 236, 44],
+    },
+    {
+      name: 'ArciumSignerAccount',
+      discriminator: [227, 247, 206, 235, 252, 167, 27, 148],
     },
   ],
   events: [

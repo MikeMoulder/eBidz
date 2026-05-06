@@ -37,6 +37,28 @@ pub struct ArciumSignerAccount {
     pub bump: u8,
 }
 
+/// Packed bid ciphertexts for the Arcium circuit.
+/// Layout (after 8-byte discriminator):
+///   [0..32)   shared X25519 pubkey (from most-recent bidder)
+///   [32..64)  nonce padded to 32 bytes (from most-recent bidder)
+///   [64..8256) 256 × 32-byte encrypted amounts (zero-padded)
+///
+/// zero_copy avoids borsh deserialization entirely (bytemuck cast),
+/// preventing a BPF stack-frame overflow from the 8192-byte ciphertexts array.
+#[account(zero_copy)]
+pub struct BidsData {
+    pub shared_pubkey: [u8; 32],
+    pub nonce_padded: [u8; 32],
+    /// Flat byte array: 256 × 32-byte ciphertexts packed end-to-end.
+    /// Slot N occupies bytes [N*32 .. (N+1)*32).
+    pub ciphertexts: [u8; 8192],
+}
+
+impl BidsData {
+    /// 8 discriminator + 32 pubkey + 32 nonce + 256×32 ciphertexts = 8264
+    pub const LEN: usize = 8 + 32 + 32 + 256 * 32;
+}
+
 fn validate_callback_ixs(
     _instructions_sysvar: &UncheckedAccount<'_>,
     _arcium_program: &Pubkey,
@@ -58,6 +80,15 @@ pub struct CreateAuction<'info> {
         bump,
     )]
     pub auction: Account<'info, Auction>,
+
+    #[account(
+        init,
+        payer = creator,
+        space = BidsData::LEN,
+        seeds = [b"bids_data", auction.key().as_ref()],
+        bump,
+    )]
+    pub bids_data: AccountLoader<'info, BidsData>,
 
     /// CHECK: validated by token program during item transfer
     pub item_mint: UncheckedAccount<'info>,
@@ -95,6 +126,17 @@ pub struct SubmitBid<'info> {
     )]
     pub bid: Account<'info, crate::state::Bid>,
 
+    /// Created lazily on first bid so auctions created before this account
+    /// type was added can still receive bids.
+    #[account(
+        init_if_needed,
+        payer = bidder,
+        space = BidsData::LEN,
+        seeds = [b"bids_data", auction.key().as_ref()],
+        bump,
+    )]
+    pub bids_data: AccountLoader<'info, BidsData>,
+
     #[account(
         mut,
         seeds = [b"vault", auction.key().as_ref()],
@@ -118,9 +160,18 @@ pub struct CloseAuction<'info> {
     )]
     pub auction: Account<'info, Auction>,
 
+    /// CHECK: bids_data PDA — only the account key is forwarded to Arcium
+    /// via ArgBuilder; no data is read/written by this instruction.
+    #[account(
+        mut,
+        seeds = [b"bids_data", auction.key().as_ref()],
+        bump,
+    )]
+    pub bids_data: UncheckedAccount<'info>,
+
     /// CHECK: Arcium MXE account for this program.
     #[account(
-        seeds = [b"mxe", crate::ID.as_ref()],
+        seeds = [MXE_PDA_SEED, crate::ID.as_ref()],
         bump,
         seeds::program = ARCIUM_PROG_ID,
     )]
@@ -202,9 +253,32 @@ impl<'info> arcium_anchor::traits::QueueCompAccs<'info> for CloseAuction<'info> 
 
 #[derive(Accounts)]
 pub struct SettleAuction<'info> {
-    #[account(mut)]
-    pub payer: Signer<'info>,
+    // ── Arcium standard callback accounts [0..5] ───────────────────────────
+    // Must be in exactly this order to match the accounts list built by
+    // build_callback_ix: [arcium_program, comp_def, mxe, computation, cluster,
+    // instructions_sysvar, ...extra_accs]
 
+    /// CHECK: Arcium program — callback account [0].
+    pub arcium_program: UncheckedAccount<'info>,
+
+    /// CHECK: Computation definition — callback account [1].
+    pub comp_def_account: UncheckedAccount<'info>,
+
+    /// CHECK: MXE account — callback account [2].
+    pub mxe_account: UncheckedAccount<'info>,
+
+    /// CHECK: Computation account — callback account [3].
+    pub computation_account: UncheckedAccount<'info>,
+
+    /// CHECK: Cluster account — callback account [4].
+    pub cluster_account: UncheckedAccount<'info>,
+
+    /// CHECK: Instructions sysvar — callback account [5].
+    #[account(address = anchor_lang::solana_program::sysvar::instructions::ID)]
+    pub instructions_sysvar: UncheckedAccount<'info>,
+
+    // ── User extra accounts [6+] ───────────────────────────────────────────
+    /// Auction to settle — passed as extra_acc in the callback ix.
     #[account(
         mut,
         seeds = [b"auction", auction.creator.as_ref(), &auction.deadline.to_le_bytes()],
@@ -212,19 +286,6 @@ pub struct SettleAuction<'info> {
         constraint = auction.status == AuctionStatus::Computing @ EbidzError::InvalidAuctionState,
     )]
     pub auction: Account<'info, Auction>,
-
-    /// CHECK: Arcium cluster account.
-    pub cluster_account: UncheckedAccount<'info>,
-
-    /// CHECK: Arcium computation account.
-    pub computation_account: UncheckedAccount<'info>,
-
-    /// CHECK: Arcium program account.
-    pub arcium_program: UncheckedAccount<'info>,
-
-    /// CHECK: instructions sysvar required by arcium_callback validation.
-    #[account(address = anchor_lang::solana_program::sysvar::instructions::ID)]
-    pub instructions_sysvar: UncheckedAccount<'info>,
 }
 
 #[derive(Accounts)]
@@ -287,9 +348,37 @@ pub struct ForceCancel<'info> {
     pub auction: Account<'info, Auction>,
 }
 
+/// One-time setup: creates the ArciumSignerAccount PDA owned by this program.
+/// Must be called before the first closeAuction invocation.
+#[derive(Accounts)]
+pub struct InitSignPda<'info> {
+    #[account(mut)]
+    pub payer: Signer<'info>,
+
+    #[account(
+        init,
+        payer = payer,
+        space = 8 + 1,
+        seeds = [b"ArciumSignerAccount"],
+        bump,
+    )]
+    pub sign_pda_account: Account<'info, ArciumSignerAccount>,
+
+    pub system_program: Program<'info, System>,
+}
+
 #[program]
 pub mod ebidz {
     use super::*;
+
+    // ── One-time setup ────────────────────────────────────────────────────
+
+    /// Initialize the Arcium signer PDA owned by this program.
+    /// Must be called once before any closeAuction call.
+    pub fn init_sign_pda(ctx: Context<InitSignPda>) -> Result<()> {
+        ctx.accounts.sign_pda_account.bump = ctx.bumps.sign_pda_account;
+        Ok(())
+    }
 
     // ── Computation-definition initializers (called once after deploy) ─────
 
@@ -375,12 +464,40 @@ pub mod ebidz {
 
         let auction_type = ctx.accounts.auction.auction_type.clone();
         let reserve = ctx.accounts.auction.reserve_price.unwrap_or(0);
+        let n_bids = ctx.accounts.auction.bid_count;
 
         // Build args for the MPC circuit.
-        // The circuit receives the reserve price as a plaintext parameter.
-        let args = ArgBuilder::new()
-            .plaintext_u64(reserve)
-            .build();
+        // input[0]: Enc<Shared, [BidInput; 256]> — passed as an Account reference
+        //   covering 258 params (pubkey + nonce_padded + 256 ciphertexts × 32 bytes each).
+        // input[1]: n_bids  (plaintext u64)
+        // input[2]: reserve (plaintext u64)
+        // For uniform-price circuits add input[3]: units (plaintext u64)
+        let bids_data_key = ctx.accounts.bids_data.key();
+        let base_args = ArgBuilder::new()
+            .account(bids_data_key, 8, (258 * 32) as u32);
+
+        let args = match &auction_type {
+            AuctionType::UniformPrice { units } => {
+                let u = *units;
+                base_args
+                    .plaintext_u64(n_bids)
+                    .plaintext_u64(reserve)
+                    .plaintext_u64(u)
+                    .build()
+            }
+            _ => base_args
+                .plaintext_u64(n_bids)
+                .plaintext_u64(reserve)
+                .build(),
+        };
+
+        // The auction account must be in extra_accs so Arcium includes it in
+        // the callback instruction it sends to us. Without this, the callback
+        // CPI would be missing the auction account and fail silently.
+        let auction_extra_acc = [arcium_client::idl::arcium::types::CallbackAccount {
+            pubkey: ctx.accounts.auction.key(),
+            is_writable: true,
+        }];
 
         let callback_ix = match &auction_type {
             AuctionType::SealedBidFirstPrice => {
@@ -390,7 +507,7 @@ pub mod ebidz {
                     ctx.accounts.mxe_account.key(),
                     ctx.accounts.computation_account.key(),
                     ctx.accounts.cluster_account.key(),
-                    &[],
+                    &auction_extra_acc,
                 )?
             }
             AuctionType::Vickrey => {
@@ -400,7 +517,7 @@ pub mod ebidz {
                     ctx.accounts.mxe_account.key(),
                     ctx.accounts.computation_account.key(),
                     ctx.accounts.cluster_account.key(),
-                    &[],
+                    &auction_extra_acc,
                 )?
             }
             AuctionType::UniformPrice { units } => {
@@ -412,7 +529,7 @@ pub mod ebidz {
                     ctx.accounts.computation_account.key(),
                     ctx.accounts.cluster_account.key(),
                     u,
-                    &[],
+                    &auction_extra_acc,
                 )?
             }
         };
@@ -544,7 +661,12 @@ fn settle_from_output(
                 .map_err(|_| error!(EbidzError::InvalidAuctionState))?
         }
         SignedComputationOutputs::Failure(_) => {
-            return Err(error!(EbidzError::InvalidAuctionState));
+            // MPC circuit aborted (e.g. invalid ciphertext MAC). Cancel the
+            // auction so bidders can claim refunds and Arcium stops retrying.
+            let auction = &mut ctx.accounts.auction;
+            auction.status = AuctionStatus::Cancelled;
+            emit!(AuctionCancelled { auction: auction.key() });
+            return Ok(());
         }
         SignedComputationOutputs::MarkerForIdlBuildDoNotUseThis(_) => {
             return Err(error!(EbidzError::InvalidAuctionState));

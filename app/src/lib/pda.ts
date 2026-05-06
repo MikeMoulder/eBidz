@@ -32,6 +32,13 @@ export function bidPda(auctionKey: PublicKey, bidder: PublicKey): [PublicKey, nu
   );
 }
 
+export function bidsDataPda(auctionKey: PublicKey): [PublicKey, number] {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from('bids_data'), auctionKey.toBuffer()],
+    programId(),
+  );
+}
+
 export function mxePda(): [PublicKey, number] {
   // Arcium MXE PDA is seeded with [b"mxe", program_id]
   const ARCIUM_PROGRAM_ID = new PublicKey('ARCiUMqkMFGzCkNNTAMvTv1CsHKGjXY5g3WUMhJ5Wxd5');

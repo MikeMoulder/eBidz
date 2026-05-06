@@ -7,7 +7,7 @@ import {
   Lock, Cpu, Database, ShieldCheck, AlertCircle,
 } from 'lucide-react';
 import { useAuction } from '@/hooks/useAuctions';
-import { useClaimRefund, useCloseAuction } from '@/hooks/useAuctionActions';
+import { useClaimRefund, useCloseAuction, useForceCancel } from '@/hooks/useAuctionActions';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { shortAddress } from '@/lib/format';
 import { getAuctionMeta } from '@/lib/auctionMeta';
@@ -34,6 +34,7 @@ export function AuctionDetailClient({ auctionId, isRealPubkey }: Props) {
 
   const { close: closeAuction, loading: closing } = useCloseAuction();
   const { claim: claimRefund, loading: claiming, txSig: refundSig } = useClaimRefund();
+  const { forceCancel, loading: forceCancelling, txSig: forceCancelSig } = useForceCancel();
 
   // ── Early exits ──────────────────────────────────────────────────────────
   if (!isRealPubkey || (!chainAuction && !chainLoading)) {
@@ -85,6 +86,8 @@ export function AuctionDetailClient({ auctionId, isRealPubkey }: Props) {
   // ── Crank: can this user close the auction? ──────────────────────────────
   const pastDeadline = Date.now() > deadlineMs;
   const canClose = pastDeadline && status === 'active';
+  // force_cancel available 24h after deadline for stuck Computing auctions
+  const canForceCancel = computing && Date.now() > deadlineMs + 24 * 60 * 60 * 1000;
 
   return (
     <div className="mx-auto max-w-[1400px] px-6 py-8">
@@ -245,6 +248,31 @@ export function AuctionDetailClient({ auctionId, isRealPubkey }: Props) {
                 Arcium's MPC cluster is processing all encrypted bids. The result will
                 be posted onchain automatically — no action required.
               </p>
+              {canForceCancel && (
+                <div className="mt-4 border-t border-border-subtle pt-4">
+                  <p className="text-xs text-text-faint mb-3">
+                    MPC timeout elapsed — you can cancel this auction and claim refunds.
+                  </p>
+                  {forceCancelSig ? (
+                    <a
+                      href={`https://explorer.solana.com/tx/${forceCancelSig}?cluster=devnet`}
+                      target="_blank" rel="noopener noreferrer"
+                      className="text-xs font-mono text-accent-bright hover:underline"
+                    >
+                      Cancelled ✓ — View tx
+                    </a>
+                  ) : (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      loading={forceCancelling}
+                      onClick={() => forceCancel(auctionId).then(refetch)}
+                    >
+                      Force Cancel
+                    </Button>
+                  )}
+                </div>
+              )}
             </div>
           ) : (
             <div className="border border-border-subtle bg-bg-surface relative">

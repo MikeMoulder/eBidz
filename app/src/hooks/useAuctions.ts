@@ -144,9 +144,14 @@ export function useAuction(pubkeyStr: string | null) {
 
   useEffect(() => {
     fetch();
-    const id = setInterval(fetch, 10_000);
+    // Poll every 5s while computing, 10s otherwise
+    const interval = () => {
+      const ms = auction?.status === 'computing' ? 5_000 : 10_000;
+      return setInterval(fetch, ms);
+    };
+    const id = interval();
     return () => clearInterval(id);
-  }, [fetch]);
+  }, [fetch, auction?.status]);
 
   return { auction, loading, error, refetch: fetch };
 }

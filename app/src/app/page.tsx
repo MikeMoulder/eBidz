@@ -16,6 +16,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { LiveAuctionsSection } from '@/components/auction/LiveAuctionsSection';
+import { PendingSettlementSection } from '@/components/auction/PendingSettlementSection';
 import { SettledAuctionsSection } from '@/components/auction/SettledAuctionsSection';
 import { Badge } from '@/components/primitives/Badge';
 import { Button } from '@/components/primitives/Button';
@@ -27,6 +28,7 @@ import {
   ScrollRevealItem,
 } from '@/components/motion/ScrollReveal';
 import { CountUp } from '@/components/motion/CountUp';
+import { ScrambleReveal } from '@/components/motion/ScrambleReveal';
 
 export default function HomePage() {
   return (
@@ -37,6 +39,7 @@ export default function HomePage() {
       <HowItWorks />
       <AuctionTypesSection />
       <LiveAuctionsSection />
+      <PendingSettlementSection />
       <SettledAuctionsSection />
       <Trust />
       <FAQ />
@@ -55,7 +58,7 @@ function Hero() {
       <div className="absolute top-40 -right-32 h-[400px] w-[400px] bg-accent-pink/[0.12] blur-[120px] pointer-events-none" />
 
       <div className="relative mx-auto max-w-[1400px] px-6 pt-16 pb-20 md:pt-20 md:pb-28">
-        <ScrollReveal direction="up" distance={12}>
+        <ScrollReveal direction="up" distance={12} once={false}>
           <div className="flex items-center gap-3 mb-10">
             <span className="font-mono text-[10px] uppercase tracking-widest text-text-faint">
               01 / Protocol
@@ -70,17 +73,19 @@ function Hero() {
 
         <div className="grid lg:grid-cols-12 gap-8 items-end">
           <div className="lg:col-span-8">
-            <ScrollReveal direction="up" delay={0.1}>
+            <ScrollReveal direction="up" delay={0.1} once={false}>
               <h1 className="font-display text-[44px] sm:text-6xl md:text-7xl lg:text-[88px] font-bold leading-[0.95] tracking-tightest mb-6">
                 <span className="block">The auction layer for</span>
                 <span className="block">
-                  <span className="text-arcium-gradient">confidential</span>{' '}
+                  <span className="text-arcium-gradient">
+                    <ScrambleReveal text="confidential" startDelay={600} />
+                  </span>{' '}
                   onchain markets.
                 </span>
               </h1>
             </ScrollReveal>
 
-            <ScrollReveal direction="up" delay={0.2}>
+            <ScrollReveal direction="up" delay={0.2} once={false}>
               <p className="text-base md:text-lg text-text-secondary leading-relaxed mb-10 max-w-2xl">
                 eBidz is a sealed-bid auction protocol where every bid is
                 encrypted client-side, kept opaque onchain, and processed by
@@ -90,7 +95,7 @@ function Hero() {
               </p>
             </ScrollReveal>
 
-            <ScrollReveal direction="up" delay={0.3}>
+            <ScrollReveal direction="up" delay={0.3} once={false}>
               <div className="flex flex-wrap items-center gap-3">
                 <Link href="#live">
                   <Button size="lg">
@@ -120,7 +125,7 @@ function Hero() {
             </ScrollReveal>
           </div>
 
-          <ScrollReveal direction="left" delay={0.35} className="lg:col-span-4">
+          <ScrollReveal direction="left" delay={0.35} once={false} className="lg:col-span-4">
             <div className="border border-border-subtle bg-bg-surface/60 backdrop-blur-md p-5 relative overflow-hidden scan-line">
               <div className="absolute -top-px left-4 right-4 h-px bg-gradient-to-r from-transparent via-accent-primary to-transparent" />
 
@@ -401,8 +406,6 @@ function AuctionTypesSection() {
     tagline: string;
     use: string;
     strategy: string;
-
-    available: boolean;
   }[] = [
       {
         tone: 'violet',
@@ -410,7 +413,6 @@ function AuctionTypesSection() {
         tagline: 'Highest bid wins, pays own bid.',
         use: 'NFT sales · fundraising · one-off assets',
         strategy: 'Strategic shading — bid below true valuation',
-        available: true,
       },
       {
         tone: 'pink',
@@ -418,7 +420,6 @@ function AuctionTypesSection() {
         tagline: 'Highest bid wins, pays second-highest.',
         use: 'Token sales · governance · fair price discovery',
         strategy: 'Truthful bidding — dominant strategy',
-        available: false,
       },
       {
         tone: 'green',
@@ -426,7 +427,6 @@ function AuctionTypesSection() {
         tagline: 'K winners pay the same clearing price.',
         use: 'Token launches · NFT batches · allowlist slots',
         strategy: 'Bid your true marginal valuation',
-        available: false,
       },
     ];
 
@@ -450,15 +450,9 @@ function AuctionTypesSection() {
               <article className="border border-border-subtle bg-bg-surface relative h-full transition-all duration-300 hover:border-accent-primary/40 hover:-translate-y-0.5">
                 <div className="px-5 py-4 border-b border-border-subtle flex items-center justify-between">
                   <Badge tone={t.tone}>{t.tag}</Badge>
-                  {t.available ? (
-                    <span className="font-mono text-[10px] uppercase tracking-widest text-state-success">
-                      Live · MVP
-                    </span>
-                  ) : (
-                    <span className="font-mono text-[10px] uppercase tracking-widest text-text-faint">
-                      Phase 2
-                    </span>
-                  )}
+                  <span className="font-mono text-[10px] uppercase tracking-widest text-state-success">
+                    Live
+                  </span>
                 </div>
 
                 <div className="p-5">

@@ -7,6 +7,12 @@ const nextConfig = {
       { protocol: 'https', hostname: 'fastly.picsum.photos' },
       { protocol: 'https', hostname: 'images.unsplash.com' },
       { protocol: 'https', hostname: 'arweave.net' },
+      { protocol: 'https', hostname: '*.ipfs.dweb.link' },
+      { protocol: 'http', hostname: '*.ipfs.dweb.link' },
+      { protocol: 'https', hostname: '*.ipfs.nftstorage.link' },
+      { protocol: 'http', hostname: '*.ipfs.nftstorage.link' },
+      { protocol: 'https', hostname: 'ipfs.io' },
+      { protocol: 'http', hostname: 'ipfs.io' },
     ],
   },
   webpack: (config, { isServer }) => {

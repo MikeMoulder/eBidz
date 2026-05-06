@@ -73,6 +73,19 @@ pub fn submit_bid(
     bid.refunded = false;
     bid.bump = ctx.bumps.bid;
 
+    // Write bid ciphertext into the packed bids_data account.
+    // Use zero_copy load_mut() to avoid 8192-byte borsh stack allocation.
+    let slot = auction.bid_count as usize;
+    if slot < 256 {
+        let mut bids_data = ctx.accounts.bids_data.load_mut()?;
+        bids_data.shared_pubkey = pub_key;
+        let mut nonce_buf = [0u8; 32];
+        nonce_buf[..16].copy_from_slice(&nonce.to_le_bytes());
+        bids_data.nonce_padded = nonce_buf;
+        let start = slot * 32;
+        bids_data.ciphertexts[start..start + 32].copy_from_slice(&encrypted_amount);
+    }
+
     auction.bid_count = auction.bid_count.checked_add(1).unwrap();
     Ok(())
 }

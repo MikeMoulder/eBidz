@@ -40,7 +40,7 @@ export function SettledAuctionsSection() {
             <div className="mx-auto max-w-[1400px] px-6 py-24">
                 <ScrollReveal>
                     <SectionHeader
-                        number="08 / Archive"
+                        number="09 / Archive"
                         title="Recently settled."
                         lede="Results computed by Arcium MPC and posted onchain. Each settlement is cryptographically verifiable."
                     />

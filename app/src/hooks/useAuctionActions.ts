@@ -8,9 +8,8 @@
 import { useCallback, useState } from 'react';
 import { PublicKey, SystemProgram } from '@solana/web3.js';
 import { BN } from '@coral-xyz/anchor';
-import { randomBytes } from 'crypto';
 import { useProgramClient } from './useProgramClient';
-import { bidPda, vaultPda } from '@/lib/pda';
+import { bidPda, vaultPda, bidsDataPda } from '@/lib/pda';
 import {
   getComputationAccAddress,
   getClusterAccAddress,
@@ -19,8 +18,30 @@ import {
   getExecutingPoolAccAddress,
   getCompDefAccAddress,
   getCompDefAccOffset,
-  getArciumEnv,
+  getFeePoolAccAddress,
+  getClockAccAddress,
+  getArciumProgramId,
 } from '@arcium-hq/client';
+import { EBIDZ_PROGRAM_ID } from '@/lib/idl';
+
+/** Derive the eBidz signing PDA that Arcium uses to verify CPI authority. */
+function getSignPdaAddress(): PublicKey {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from('ArciumSignerAccount')],
+    new PublicKey(EBIDZ_PROGRAM_ID),
+  )[0];
+}
+
+// Devnet cluster offset from Arcium.toml [clusters.devnet]
+const ARCIUM_CLUSTER_OFFSET = 456;
+
+function randomU64BN(): BN {
+  const buf = new Uint8Array(8);
+  window.crypto.getRandomValues(buf);
+  let hex = '';
+  buf.forEach((b) => { hex += b.toString(16).padStart(2, '0'); });
+  return new BN(BigInt('0x' + hex).toString());
+}
 import { AuctionType } from '@/lib/idl';
 
 function circuitNameForType(auctionType: AuctionType): string {
@@ -42,31 +63,33 @@ export function useCloseAuction() {
 
       try {
         setLoading(true);
-        const arciumEnv = getArciumEnv();
-        const computationOffset = new BN(
-          BigInt('0x' + Buffer.from(randomBytes(8)).toString('hex')).toString(),
-        );
+        const computationOffset = randomU64BN();
 
         const auctionKey = new PublicKey(auctionPubkey);
+        const [bidsData] = bidsDataPda(auctionKey);
 
         const sig = await program.methods
           .closeAuction(computationOffset)
           .accounts({
             payer: wallet.publicKey!,
             auction: auctionKey,
+            bidsData,
             mxeAccount: getMXEAccAddress(program.programId),
-            clusterAccount: getClusterAccAddress(arciumEnv.arciumClusterOffset),
+            signPdaAccount: getSignPdaAddress(),
+            mempoolAccount: getMempoolAccAddress(ARCIUM_CLUSTER_OFFSET),
+            executingPool: getExecutingPoolAccAddress(ARCIUM_CLUSTER_OFFSET),
             computationAccount: getComputationAccAddress(
-              arciumEnv.arciumClusterOffset,
+              ARCIUM_CLUSTER_OFFSET,
               computationOffset,
             ),
-            mempoolAccount: getMempoolAccAddress(arciumEnv.arciumClusterOffset),
-            executingPool: getExecutingPoolAccAddress(arciumEnv.arciumClusterOffset),
             compDefAccount: getCompDefAccAddress(
               program.programId,
-              getCompDefAccOffset(circuitNameForType(auctionType)) as unknown as number,
+              Buffer.from(getCompDefAccOffset(circuitNameForType(auctionType))).readUInt32LE(0),
             ),
-            arciumProgram: new PublicKey('ARCiUMqkMFGzCkNNTAMvTv1CsHKGjXY5g3WUMhJ5Wxd5'),
+            clusterAccount: getClusterAccAddress(ARCIUM_CLUSTER_OFFSET),
+            poolAccount: getFeePoolAccAddress(),
+            clockAccount: getClockAccAddress(),
+            arciumProgram: getArciumProgramId(),
             systemProgram: SystemProgram.programId,
           })
           .rpc({ commitment: 'confirmed' });
@@ -123,4 +146,42 @@ export function useClaimRefund() {
   );
 
   return { claim, loading, txSig, error };
+}
+
+// ─── useForceCancel ───────────────────────────────────────────────────────────
+
+export function useForceCancel() {
+  const client = useProgramClient();
+  const [loading, setLoading] = useState(false);
+  const [txSig, setTxSig] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const forceCancel = useCallback(
+    async (auctionPubkey: string) => {
+      if (!client) { setError('Wallet not connected'); return; }
+      const { program, wallet } = client;
+      setError(null); setTxSig(null);
+      try {
+        setLoading(true);
+        const auctionKey = new PublicKey(auctionPubkey);
+
+        const sig = await program.methods
+          .forceCancel()
+          .accounts({
+            caller: wallet.publicKey!,
+            auction: auctionKey,
+          })
+          .rpc({ commitment: 'confirmed' });
+
+        setTxSig(sig);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Unknown error');
+      } finally {
+        setLoading(false);
+      }
+    },
+    [client],
+  );
+
+  return { forceCancel, loading, txSig, error };
 }

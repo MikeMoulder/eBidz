@@ -1,23 +1,22 @@
 import type { Metadata } from 'next';
-import { Inter, JetBrains_Mono } from 'next/font/google';
+import { Space_Grotesk, DM_Sans, JetBrains_Mono } from 'next/font/google';
 import { Navbar } from '@/components/layout/Navbar';
 import { Footer } from '@/components/layout/Footer';
 import { SolanaProviders } from '@/components/providers/SolanaProviders';
 import './globals.css';
 
-// Inter is the closest free, well-supported neo-grotesque to Arcium's Aeonik Pro.
-// JetBrains Mono provides the technical/monospace counterpoint.
-const inter = Inter({
-  subsets: ['latin'],
-  variable: '--font-body',
-  display: 'swap',
-});
-
-const interDisplay = Inter({
+const spaceGrotesk = Space_Grotesk({
   subsets: ['latin'],
   variable: '--font-display',
   display: 'swap',
-  weight: ['500', '600', '700', '800', '900'],
+  weight: ['400', '500', '600', '700'],
+});
+
+const dmSans = DM_Sans({
+  subsets: ['latin'],
+  variable: '--font-body',
+  display: 'swap',
+  weight: ['300', '400', '500', '600'],
 });
 
 const jetbrainsMono = JetBrains_Mono({
@@ -47,7 +46,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${interDisplay.variable} ${jetbrainsMono.variable}`}
+      className={`${spaceGrotesk.variable} ${dmSans.variable} ${jetbrainsMono.variable}`}
     >
       <body className="min-h-screen bg-bg-base text-text-primary antialiased">
         <SolanaProviders>
