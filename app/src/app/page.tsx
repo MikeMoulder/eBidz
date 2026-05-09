@@ -406,6 +406,7 @@ function AuctionTypesSection() {
     tagline: string;
     use: string;
     strategy: string;
+    live: boolean;
   }[] = [
       {
         tone: 'violet',
@@ -413,6 +414,7 @@ function AuctionTypesSection() {
         tagline: 'Highest bid wins, pays own bid.',
         use: 'NFT sales · fundraising · one-off assets',
         strategy: 'Strategic shading — bid below true valuation',
+        live: true,
       },
       {
         tone: 'pink',
@@ -420,6 +422,7 @@ function AuctionTypesSection() {
         tagline: 'Highest bid wins, pays second-highest.',
         use: 'Token sales · governance · fair price discovery',
         strategy: 'Truthful bidding — dominant strategy',
+        live: true,
       },
       {
         tone: 'green',
@@ -427,6 +430,7 @@ function AuctionTypesSection() {
         tagline: 'K winners pay the same clearing price.',
         use: 'Token launches · NFT batches · allowlist slots',
         strategy: 'Bid your true marginal valuation',
+        live: false,
       },
     ];
 
@@ -450,8 +454,10 @@ function AuctionTypesSection() {
               <article className="border border-border-subtle bg-bg-surface relative h-full transition-all duration-300 hover:border-accent-primary/40 hover:-translate-y-0.5">
                 <div className="px-5 py-4 border-b border-border-subtle flex items-center justify-between">
                   <Badge tone={t.tone}>{t.tag}</Badge>
-                  <span className="font-mono text-[10px] uppercase tracking-widest text-state-success">
-                    Live
+                  <span
+                    className={`font-mono text-[10px] uppercase tracking-widest ${t.live ? 'text-state-success' : 'text-state-warning'}`}
+                  >
+                    {t.live ? 'Live' : 'Coming soon'}
                   </span>
                 </div>
 

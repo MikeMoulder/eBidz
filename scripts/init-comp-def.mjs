@@ -13,6 +13,7 @@
  *        CIRCUIT_STORAGE_BASE_URL=https://<project>.supabase.co/storage/v1/object/public/<bucket>
  *        SOLANA_WALLET_PATH=C:/Users/DELL/.config/solana/id.json   (default)
  *        SOLANA_RPC_URL=https://devnet.helius-rpc.com/?api-key=...  (default: devnet)
+ *        CIRCUITS=first_price_winner,vickrey_winner                 (optional subset)
  *
  * Run (from repo root):
  *   node scripts/init-comp-def.mjs
@@ -53,6 +54,7 @@ const CIRCUIT_BASE_URL = process.env.CIRCUIT_STORAGE_BASE_URL
   || (() => { throw new Error('Set CIRCUIT_STORAGE_BASE_URL env var to your Supabase storage URL'); })();
 
 const RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com';
+const CIRCUITS_ENV = process.env.CIRCUITS || '';
 
 const WALLET_PATH = process.env.SOLANA_WALLET_PATH
   || resolve(process.env.HOME || process.env.USERPROFILE, '.config/solana/id.json');
@@ -163,6 +165,14 @@ async function initCompDef(connection, payer, circuitName, offset, discriminator
   return sig;
 }
 
+function parseRequestedCircuits() {
+  if (!CIRCUITS_ENV.trim()) return null;
+  return CIRCUITS_ENV
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 // ── main ─────────────────────────────────────────────────────────────────────
 (async () => {
   console.log('eBidz — init_comp_def\n');
@@ -185,18 +195,36 @@ async function initCompDef(connection, payer, circuitName, offset, discriminator
     process.exit(1);
   }
 
-  // Initialize all 3 computation definitions
-  const circuits = [
+  // Initialize requested computation definitions (all by default)
+  const allCircuits = [
     { name: 'first_price_winner', offset: OFFSET_FIRST_PRICE, disc: DISC_FIRST },
     { name: 'vickrey_winner', offset: OFFSET_VICKREY, disc: DISC_VICKREY },
     { name: 'uniform_price_winner', offset: OFFSET_UNIFORM, disc: DISC_UNIFORM },
   ];
 
+  const requested = parseRequestedCircuits();
+  const circuits = requested
+    ? allCircuits.filter((c) => requested.includes(c.name))
+    : allCircuits;
+
+  if (requested) {
+    const unknown = requested.filter((name) => !allCircuits.some((c) => c.name === name));
+    if (unknown.length > 0) {
+      throw new Error(`Unknown CIRCUITS entries: ${unknown.join(', ')}`);
+    }
+    if (circuits.length === 0) {
+      throw new Error('CIRCUITS did not match any supported circuits');
+    }
+    console.log(`Requested circuits: ${circuits.map((c) => c.name).join(', ')}`);
+  } else {
+    console.log('Requested circuits: all');
+  }
+
   for (const c of circuits) {
     await initCompDef(connection, payer, c.name, c.offset, c.disc);
   }
 
-  console.log('\n✓ All computation definitions initialized.');
+  console.log('\n✓ Computation definitions initialized.');
   console.log('Next: verify with `solana account <comp_def_account> --url devnet`');
 })().catch(err => {
   console.error('\nERROR:', err.message);

@@ -13,7 +13,7 @@
 import { useState, useCallback } from 'react';
 import { PublicKey, SystemProgram, LAMPORTS_PER_SOL as WEB3_LAMPORTS } from '@solana/web3.js';
 import { BN } from '@coral-xyz/anchor';
-import { RescueCipher, x25519, getMXEPublicKey } from '@arcium-hq/client';
+import { RescueCipher, x25519, getMXEPublicKey, getMXEAccAddress } from '@arcium-hq/client';
 import { randomBytes } from 'crypto';
 import { useProgramClient } from './useProgramClient';
 import { bidPda, vaultPda, bidsDataPda } from '@/lib/pda';
@@ -75,7 +75,14 @@ export function useBid(): UseBidReturn {
             'Run `arcium init` then `node scripts/init-comp-def.mjs` before submitting bids.',
           );
         }
-        if (!mxePublicKey) throw new Error('Arcium MXE public key is not set');
+        if (!mxePublicKey) {
+          const mxeAccount = getMXEAccAddress(program.programId).toBase58();
+          throw new Error(
+            `Arcium MXE public key is not set yet for this program (MXE: ${mxeAccount}). ` +
+            'MXE exists, but keygen is still pending/expired. ' +
+            'Run `node scripts/requeue-mxe-keygen.mjs` and retry in a moment.',
+          );
+        }
 
         // ── Step 3: Shared secret + cipher ───────────────────────────────
         const sharedSecret = x25519.getSharedSecret(privateKey, mxePublicKey);

@@ -1,0 +1,2 @@
+25c5d468e50e78e8363b2e0fd1a3d3fef7efa90570cc1e1d1bb4b232f663965b  release/live-two/first_price_winner.arcis
+78cbcc1487cef45f12fe0bd6e0c2416eb5a45b9c102347d8e36a25aa373b222a  release/live-two/vickrey_winner.arcis

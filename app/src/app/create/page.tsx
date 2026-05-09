@@ -29,6 +29,7 @@ export default function CreateAuctionPage() {
     return trimmed.replace(/^http:\/\/((?:[^/]+\.)?ipfs\.(?:dweb\.link|nftstorage\.link|io))/, 'https://$1');
   }
   const [auctionType, setAuctionType] = useState<'first-price' | 'vickrey' | 'uniform'>('first-price');
+  const uniformComingSoon = true;
   const [units, setUnits] = useState('1');
   const [reserveSol, setReserveSol] = useState('');
   const [deadline, setDeadline] = useState('');
@@ -42,6 +43,7 @@ export default function CreateAuctionPage() {
     e.preventDefault();
     if (!publicKey) { setVisible(true); return; }
     if (!itemMintInput || !deadline || itemMintInvalid) return;
+    if (uniformComingSoon && auctionType === 'uniform') return;
 
     const deadlineUnix = Math.floor(new Date(deadline).getTime() / 1000);
     const result = await create({
@@ -151,8 +153,16 @@ export default function CreateAuctionPage() {
                         desc="K winners pay clearing price."
                         selected={auctionType === 'uniform'}
                         onSelect={() => setAuctionType('uniform')}
+                        disabled={uniformComingSoon}
+                        badgeText="Coming soon"
                       />
                     </div>
+                    {uniformComingSoon && (
+                      <p className="mt-2 text-[11px] text-text-muted">
+                        Uniform-Price auctions are visible in the UI, but circuit deployment is still in progress.
+                        First-Price and Vickrey are fully live.
+                      </p>
+                    )}
                   </Field>
 
                   <div className="grid sm:grid-cols-2 gap-4">
@@ -224,9 +234,19 @@ export default function CreateAuctionPage() {
                 )}
 
                 <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-border-subtle">
-                  <Button type="submit" size="md" disabled={submitting || !deadline || !itemMintInput || itemMintInvalid}>
+                  <Button
+                    type="submit"
+                    size="md"
+                    disabled={submitting || !deadline || !itemMintInput || itemMintInvalid || (uniformComingSoon && auctionType === 'uniform')}
+                  >
                     <Lock size={13} />
-                    {submitting ? 'Signing…' : !publicKey ? 'Connect wallet to launch' : 'Launch auction'}
+                    {submitting
+                      ? 'Signing…'
+                      : !publicKey
+                        ? 'Connect wallet to launch'
+                        : uniformComingSoon && auctionType === 'uniform'
+                          ? 'Uniform-Price coming soon'
+                          : 'Launch auction'}
                     <ArrowRight size={12} />
                   </Button>
                 </div>
@@ -355,23 +375,35 @@ function TypeOption({
   desc,
   selected,
   onSelect,
+  disabled,
+  badgeText,
 }: {
   title: string;
   desc: string;
   selected?: boolean;
   onSelect?: () => void;
+  disabled?: boolean;
+  badgeText?: string;
 }) {
   return (
     <button
       type="button"
       onClick={onSelect}
-      className={`relative text-left border p-3 transition-all ${selected
-        ? 'border-accent-primary bg-accent-primary/[0.06]'
-        : 'border-border-subtle bg-bg-base/40 hover:border-accent-primary/40 hover:bg-accent-primary/[0.04]'
+      disabled={disabled}
+      className={`relative text-left border p-3 transition-all ${disabled
+        ? 'border-border-subtle/70 bg-bg-base/20 opacity-75 cursor-not-allowed'
+        : selected
+          ? 'border-accent-primary bg-accent-primary/[0.06]'
+          : 'border-border-subtle bg-bg-base/40 hover:border-accent-primary/40 hover:bg-accent-primary/[0.04]'
         }`}
     >
       {selected && (
         <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 bg-accent-bright" />
+      )}
+      {badgeText && (
+        <span className="absolute top-1.5 right-1.5 font-mono text-[9px] uppercase tracking-widest text-state-warning">
+          {badgeText}
+        </span>
       )}
       <div className="font-display text-sm font-semibold text-text-primary mb-1 tracking-tight">
         {title}
