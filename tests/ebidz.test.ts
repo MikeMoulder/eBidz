@@ -57,6 +57,14 @@ function deriveBid(auction: PublicKey, bidder: PublicKey): PublicKey {
   return pda;
 }
 
+function deriveBidsData(auction: PublicKey): PublicKey {
+  const [pda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("bids_data"), auction.toBuffer()],
+    PROG_ID
+  );
+  return pda;
+}
+
 // ─── Wallet loader ────────────────────────────────────────────────────────────
 function loadWallet(): Keypair {
   const walletPath = path.join(os.homedir(), ".config", "solana", "id.json");
@@ -110,6 +118,7 @@ describe("eBidz Program (devnet)", () => {
     const auction = deriveAuction(payer.publicKey, deadline);
     const vault = deriveVault(auction);
     const itemMint = Keypair.generate().publicKey; // dummy SPL mint
+    const bidsData = deriveBidsData(auction);
 
     console.log(`    deadline=${deadline}, auction PDA=${auction.toBase58()}`);
 
@@ -123,6 +132,7 @@ describe("eBidz Program (devnet)", () => {
       .accounts({
         creator: payer.publicKey,
         auction,
+        bidsData,
         itemMint,
         vault,
         systemProgram: SystemProgram.programId,
@@ -147,6 +157,7 @@ describe("eBidz Program (devnet)", () => {
     const auction = deriveAuction(payer.publicKey, deadline);
     const vault = deriveVault(auction);
     const itemMint = Keypair.generate().publicKey;
+    const bidsData = deriveBidsData(auction);
 
     const sig = await program.methods
       .createAuction(
@@ -158,6 +169,7 @@ describe("eBidz Program (devnet)", () => {
       .accounts({
         creator: payer.publicKey,
         auction,
+        bidsData,
         itemMint,
         vault,
         systemProgram: SystemProgram.programId,
@@ -179,6 +191,7 @@ describe("eBidz Program (devnet)", () => {
     const auction = deriveAuction(payer.publicKey, deadline);
     const vault = deriveVault(auction);
     const bid = deriveBid(auction, bidder.publicKey);
+    const bidsData = deriveBidsData(auction);
 
     // Dummy encrypted data — real bids would use Arcium X25519 + Rescue cipher
     const encryptedAmount = Array.from({ length: 32 }, (_, i) => (i + 0xab) & 0xff);
@@ -194,6 +207,7 @@ describe("eBidz Program (devnet)", () => {
         bidder: bidder.publicKey,
         auction,
         bid,
+        bidsData,
         vault,
         systemProgram: SystemProgram.programId,
       })
@@ -241,6 +255,7 @@ describe("eBidz Program (devnet)", () => {
     const auction = deriveAuction(payer.publicKey, deadline);
     const vault = deriveVault(auction);
     const itemMint = Keypair.generate().publicKey;
+    const bidsData = deriveBidsData(auction);
 
     await program.methods
       .createAuction(
@@ -252,6 +267,7 @@ describe("eBidz Program (devnet)", () => {
       .accounts({
         creator: payer.publicKey,
         auction,
+        bidsData,
         itemMint,
         vault,
         systemProgram: SystemProgram.programId,
@@ -275,6 +291,7 @@ describe("eBidz Program (devnet)", () => {
     const auction = deriveAuction(payer.publicKey, deadline);
     const vault = deriveVault(auction);
     const bid = deriveBid(auction, bidder.publicKey);
+    const bidsData = deriveBidsData(auction);
 
     try {
       await program.methods
@@ -288,6 +305,7 @@ describe("eBidz Program (devnet)", () => {
           bidder: bidder.publicKey,
           auction,
           bid,
+          bidsData,
           vault,
           systemProgram: SystemProgram.programId,
         })
@@ -306,6 +324,7 @@ describe("eBidz Program (devnet)", () => {
     const vault = deriveVault(auction);
     // Use payer as a second bidder (bidder already has a bid in this auction)
     const bid = deriveBid(auction, payer.publicKey);
+    const bidsData = deriveBidsData(auction);
 
     try {
       await program.methods
@@ -319,6 +338,7 @@ describe("eBidz Program (devnet)", () => {
           bidder: payer.publicKey,
           auction,
           bid,
+          bidsData,
           vault,
           systemProgram: SystemProgram.programId,
         })

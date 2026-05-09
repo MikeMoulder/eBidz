@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { cn } from '@/lib/cn';
+import { Loader2 } from 'lucide-react';
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'outline' | 'danger';
 type Size = 'sm' | 'md' | 'lg';
@@ -26,12 +27,14 @@ const sizes: Record<Size, string> = {
 type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: Variant;
   size?: Size;
+  loading?: boolean;
 };
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant = 'primary', size = 'md', ...props }, ref) => (
+  ({ className, variant = 'primary', size = 'md', loading, disabled, children, ...props }, ref) => (
     <button
       ref={ref}
+      disabled={disabled || loading}
       className={cn(
         'group inline-flex items-center justify-center gap-2 font-medium uppercase tracking-wider transition-all duration-200 focus-ring disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none',
         variants[variant],
@@ -39,7 +42,10 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         className,
       )}
       {...props}
-    />
+    >
+      {loading && <Loader2 size={14} className="animate-spin" />}
+      {children}
+    </button>
   ),
 );
 Button.displayName = 'Button';

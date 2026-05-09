@@ -20,6 +20,7 @@ Three auction types are supported:
 
 ### Deployed Program
 - **Program ID:** `4U9HFuutY2KJdrw3AFsQhf3Kvp6BvVjaGBmDB1bQAGBU`
+> **Updated:** The above ID was the original Windows deployment. The VPS-redeployed program ID is `3s8PVCbX5eTiBDnn2oW9EdsH82V3JE2ua5aEDwBz9uBv` — all source files now reference this.
 - **Network:** Solana Devnet
 - **Arcium program:** `Arcj82pX7HxYKLR92qvgZUAd7vGS1k4hQvAFcPATFdEQ`
 

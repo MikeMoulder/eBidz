@@ -15,7 +15,7 @@ const {
 } = require(`${appModules}/@arcium-hq/client`);
 
 const CLUSTER_OFFSET = 456; // from Arcium.toml
-const EBIDZ_PROG_ID = new PublicKey('4U9HFuutY2KJdrw3AFsQhf3Kvp6BvVjaGBmDB1bQAGBU');
+const EBIDZ_PROG_ID = new PublicKey('3s8PVCbX5eTiBDnn2oW9EdsH82V3JE2ua5aEDwBz9uBv');
 const RPC_URL = 'https://api.devnet.solana.com';
 
 const connection = new Connection(RPC_URL, 'confirmed');

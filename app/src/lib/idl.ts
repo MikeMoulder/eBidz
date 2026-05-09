@@ -3,7 +3,7 @@
  * This is a hand-authored IDL that can be replaced with the one generated
  * by `anchor build` once the toolchain is available.
  */
-export const EBIDZ_PROGRAM_ID = '4U9HFuutY2KJdrw3AFsQhf3Kvp6BvVjaGBmDB1bQAGBU';
+export const EBIDZ_PROGRAM_ID = '3s8PVCbX5eTiBDnn2oW9EdsH82V3JE2ua5aEDwBz9uBv';
 
 export type AuctionType =
   | { sealedBidFirstPrice: Record<string, never> }
@@ -45,8 +45,8 @@ export interface BidAccount {
 export const EBIDZ_IDL = {
   version: '0.1.0',
   name: 'ebidz',
-  address: '4U9HFuutY2KJdrw3AFsQhf3Kvp6BvVjaGBmDB1bQAGBU',
-  metadata: { address: '4U9HFuutY2KJdrw3AFsQhf3Kvp6BvVjaGBmDB1bQAGBU' },
+  address: '3s8PVCbX5eTiBDnn2oW9EdsH82V3JE2ua5aEDwBz9uBv',
+  metadata: { address: '3s8PVCbX5eTiBDnn2oW9EdsH82V3JE2ua5aEDwBz9uBv' },
   types: [
     {
       name: 'auctionType',

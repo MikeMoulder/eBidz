@@ -23,7 +23,7 @@ const {
     Transaction, TransactionInstruction,
 } = require(`${appModules}/@solana/web3.js`);
 
-const EBIDZ_PROG_ID = new PublicKey('4U9HFuutY2KJdrw3AFsQhf3Kvp6BvVjaGBmDB1bQAGBU');
+const EBIDZ_PROG_ID = new PublicKey('3s8PVCbX5eTiBDnn2oW9EdsH82V3JE2ua5aEDwBz9uBv');
 const RPC_URL = process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com';
 const WALLET_PATH = process.env.SOLANA_WALLET_PATH || resolve(process.env.HOME || '', '.config/solana/id.json');
 

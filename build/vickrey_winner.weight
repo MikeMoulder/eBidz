@@ -1,1 +1,1 @@
-{"weight":1000000}
+{"network_base":73288,"network_scalar":0,"arith_singlets":10740,"network_mersenne":0,"weight":9313678146,"gate_weight":405073408,"network_size_weight":2505344256,"network_point":1,"network_bit":299765,"bit_triples":141182,"network_depth":2681,"network_size":9786501,"hash":5103681684728870894,"depth_weight":5622464512,"total_gates":1582318,"arith_triples":30889,"pow_pairs":0,"preprocess_weight":780795970,"bit_singlets":252,"da_bits":97785}

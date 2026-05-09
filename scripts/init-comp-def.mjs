@@ -34,7 +34,7 @@ const { PublicKey, Connection, Keypair, Transaction, TransactionInstruction,
 
 // ── constants ────────────────────────────────────────────────────────────────
 const ARCIUM_PROG_ID = new PublicKey('Arcj82pX7HxYKLR92qvgZUAd7vGS1k4hQvAFcPATFdEQ');
-const EBIDZ_PROG_ID = new PublicKey('4U9HFuutY2KJdrw3AFsQhf3Kvp6BvVjaGBmDB1bQAGBU');
+const EBIDZ_PROG_ID = new PublicKey('3s8PVCbX5eTiBDnn2oW9EdsH82V3JE2ua5aEDwBz9uBv');
 const ALT_PROG_ID = new PublicKey('AddressLookupTab1e1111111111111111111111111');
 const SYSTEM_PROG_ID = SystemProgram.programId;
 

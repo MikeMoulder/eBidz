@@ -12,7 +12,7 @@ use instructions::{
     MPC_TIMEOUT_SECONDS,
 };
 
-declare_id!("4U9HFuutY2KJdrw3AFsQhf3Kvp6BvVjaGBmDB1bQAGBU");
+declare_id!("3s8PVCbX5eTiBDnn2oW9EdsH82V3JE2ua5aEDwBz9uBv");
 
 /// Placeholder for the Arcium-generated output type for our circuits.
 /// When the project is built with `arcium build`, the #[arcium_callback] macro
