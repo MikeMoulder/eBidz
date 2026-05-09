@@ -10,6 +10,7 @@ import { PublicKey, SystemProgram } from '@solana/web3.js';
 import { BN } from '@coral-xyz/anchor';
 import { useProgramClient } from './useProgramClient';
 import { bidPda, vaultPda, bidsDataPda } from '@/lib/pda';
+import { AuctionType } from '@/lib/idl';
 import {
   getComputationAccAddress,
   getClusterAccAddress,
@@ -42,7 +43,6 @@ function randomU64BN(): BN {
   buf.forEach((b) => { hex += b.toString(16).padStart(2, '0'); });
   return new BN(BigInt('0x' + hex).toString());
 }
-import { AuctionType } from '@/lib/idl';
 
 function circuitNameForType(auctionType: AuctionType): string {
   if ('sealedBidFirstPrice' in auctionType) return 'first_price_winner';
@@ -57,11 +57,13 @@ export function useCloseAuction() {
   const [txSig, setTxSig] = useState<string | null>(null);
 
   const close = useCallback(
-    async (auctionPubkey: string, auctionCreator: string, auctionDeadline: number, auctionType: AuctionType) => {
+    async (auctionPubkey: string, _auctionCreator: string, _auctionDeadline: number, auctionType: AuctionType) => {
       if (!client) { setError('Wallet not connected'); return; }
       const { program, wallet } = client;
 
       try {
+        setError(null);
+        setTxSig(null);
         setLoading(true);
         const computationOffset = randomU64BN();
 
@@ -119,6 +121,8 @@ export function useClaimRefund() {
       const { program, wallet } = client;
 
       try {
+        setError(null);
+        setTxSig(null);
         setLoading(true);
         const auctionKey = new PublicKey(auctionPubkey);
         const [bidKey] = bidPda(auctionKey, wallet.publicKey!);
