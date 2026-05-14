@@ -358,6 +358,66 @@ export function useClaimWinningAsset() {
   return { claimWinningAsset, loading, txSig, error };
 }
 
+export function useReclaimAuctionAsset() {
+  const { connection } = useConnection();
+  const wallet = useWallet();
+  const [loading, setLoading] = useState(false);
+  const [txSig, setTxSig] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const reclaimAsset = useCallback(
+    async (auctionPubkey?: string, itemMint?: string) => {
+      if (!wallet.publicKey || !wallet.signTransaction || !auctionPubkey || !itemMint) {
+        setError('Wallet not connected');
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setTxSig(null);
+        setError(null);
+
+        const signerWallet = {
+          publicKey: wallet.publicKey,
+          signTransaction: wallet.signTransaction,
+          signAllTransactions: wallet.signAllTransactions ?? (async (txs: any[]) => txs),
+        };
+        const provider = new AnchorProvider(connection, signerWallet, { commitment: 'confirmed' });
+        const idl = JSON.parse(JSON.stringify({ ...EBIDZ_IDL, address: EBIDZ_PROGRAM_ID })) as unknown as Idl;
+        const program = new Program(idl, provider);
+
+        const auctionKey = new PublicKey(auctionPubkey);
+        const mintKey = new PublicKey(itemMint);
+        const auctionItemVault = ataFor(auctionKey, mintKey);
+        const creatorItemAccount = ataFor(wallet.publicKey, mintKey);
+
+        const sig = await (program.methods as any)
+          .reclaimAuctionAsset()
+          .accounts({
+            creator: wallet.publicKey,
+            auction: auctionKey,
+            itemMint: mintKey,
+            auctionItemVault,
+            creatorItemAccount,
+            tokenProgram: TOKEN_PROGRAM_ID,
+            associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+            systemProgram: SystemProgram.programId,
+          })
+          .rpc({ commitment: 'confirmed' });
+
+        setTxSig(sig);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Unknown error');
+      } finally {
+        setLoading(false);
+      }
+    },
+    [wallet.publicKey, wallet.signTransaction, wallet.signAllTransactions, connection],
+  );
+
+  return { reclaimAsset, loading, txSig, error };
+}
+
 export function useClaimSellerProceeds() {
   const { connection } = useConnection();
   const wallet = useWallet();

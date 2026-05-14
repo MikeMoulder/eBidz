@@ -13,6 +13,7 @@ import {
   useClaimWinningAsset,
   useCloseAuction,
   useForceCancel,
+  useReclaimAuctionAsset,
 } from '@/hooks/useAuctionActions';
 import { useResolvedAuctionImage } from '@/hooks/useResolvedAuctionImage';
 import { useWallet } from '@solana/wallet-adapter-react';
@@ -54,6 +55,12 @@ export function AuctionDetailClient({ auctionId, isRealPubkey }: Props) {
     error: claimProceedsError,
   } = useClaimSellerProceeds();
   const { forceCancel, loading: forceCancelling, txSig: forceCancelSig } = useForceCancel();
+  const {
+    reclaimAsset,
+    loading: reclaiming,
+    txSig: reclaimSig,
+    error: reclaimError,
+  } = useReclaimAuctionAsset();
 
   // Resolve display image — must run before any early returns so hook order stays stable.
   const imageUrl = useResolvedAuctionImage(auctionId, chainAuction?.itemMint);
@@ -297,19 +304,53 @@ export function AuctionDetailClient({ auctionId, isRealPubkey }: Props) {
             <div className="border border-border-subtle bg-bg-surface p-5">
               <p className="font-display text-lg font-bold mb-2">Auction cancelled</p>
               <p className="text-text-secondary text-sm mb-4">
-                {publicKey
-                  ? 'Your deposit refund is available.'
-                  : 'The reserve price was not met or the creator cancelled.'}
+                {!publicKey
+                  ? 'The reserve price was not met or the auction was cancelled.'
+                  : isCreator
+                    ? 'You can reclaim your escrowed asset.'
+                    : 'Your deposit refund is available.'}
               </p>
               {publicKey && (
-                <Button
-                  size="sm"
-                  onClick={() => claimRefund(auctionId)}
-                  disabled={claiming}
-                  className="w-full"
+                isCreator ? (
+                  <Button
+                    size="sm"
+                    onClick={() => reclaimAsset(auctionId, chainAuction!.itemMint).then(refetch)}
+                    disabled={reclaiming || !!reclaimSig}
+                    className="w-full"
+                  >
+                    {reclaimSig
+                      ? '✓ Asset Reclaimed'
+                      : reclaiming
+                        ? 'Reclaiming…'
+                        : 'Reclaim Asset'}
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    onClick={() => claimRefund(auctionId)}
+                    disabled={claiming || !!refundSig}
+                    className="w-full"
+                  >
+                    {refundSig
+                      ? '✓ Refunded'
+                      : claiming
+                        ? 'Claiming…'
+                        : 'Claim Refund'}
+                  </Button>
+                )
+              )}
+              {reclaimError && (
+                <p className="mt-2 text-xs text-state-danger break-words">{reclaimError}</p>
+              )}
+              {reclaimSig && (
+                <a
+                  href={`https://explorer.solana.com/tx/${reclaimSig}?cluster=devnet`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-2 flex items-center justify-center gap-1 text-[10px] font-mono uppercase tracking-widest text-accent-bright hover:underline"
                 >
-                  {claiming ? 'Claiming…' : 'Claim Refund'}
-                </Button>
+                  View reclaim tx <ExternalLink size={9} />
+                </a>
               )}
               {refundSig && (
                 <a
@@ -318,7 +359,7 @@ export function AuctionDetailClient({ auctionId, isRealPubkey }: Props) {
                   rel="noopener noreferrer"
                   className="mt-2 flex items-center justify-center gap-1 text-[10px] font-mono uppercase tracking-widest text-accent-bright hover:underline"
                 >
-                  View tx <ExternalLink size={9} />
+                  View refund tx <ExternalLink size={9} />
                 </a>
               )}
             </div>
