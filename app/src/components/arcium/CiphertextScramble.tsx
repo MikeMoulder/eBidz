@@ -3,18 +3,19 @@
 import { useEffect, useState } from 'react';
 import { cn } from '@/lib/cn';
 
-const HEX = '0123456789ABCDEF';
+// Solana addresses + signatures use base58 (no 0, O, I, or l).
+const BASE58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
 
-function randomHex(len: number) {
-  let out = '0x';
+function randomBase58(len: number) {
+  let out = '';
   for (let i = 0; i < len; i++) {
-    out += HEX[Math.floor(Math.random() * 16)];
+    out += BASE58[Math.floor(Math.random() * BASE58.length)];
   }
   return out;
 }
 
 function placeholder(len: number) {
-  return '0x' + '·'.repeat(len);
+  return '·'.repeat(len);
 }
 
 type Props = {
@@ -31,8 +32,8 @@ export function CiphertextScramble({
   const [text, setText] = useState(() => placeholder(length));
 
   useEffect(() => {
-    setText(randomHex(length));
-    const id = setInterval(() => setText(randomHex(length)), intervalMs);
+    setText(randomBase58(length));
+    const id = setInterval(() => setText(randomBase58(length)), intervalMs);
     return () => clearInterval(id);
   }, [length, intervalMs]);
 

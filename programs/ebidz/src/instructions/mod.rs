@@ -2,16 +2,18 @@ use anchor_lang::prelude::*;
 use arcium_anchor::traits::CallbackCompAccs;
 use arcium_anchor::{queue_computation, ArgBuilder, SignedComputationOutputs};
 use arcium_client::idl::arcium::types::CallbackAccount;
+use anchor_spl::token_interface::{self, TransferChecked};
 
 use crate::errors::EbidzError;
 use crate::state::{AuctionStatus, AuctionType, BidEntry, MAX_BIDS};
 use crate::{
-    AuctionCancelled, AuctionSettled, CloseAuction, FirstPriceWinnerV13Callback,
-    FirstPriceWinnerV13Output, ForceCancel,
+    AuctionCancelled, AuctionSettled, ClaimSellerProceeds, ClaimWinningAsset, CloseAuction,
+    FirstPriceWinnerV13Callback, FirstPriceWinnerV13Output, ForceCancel, ReclaimAuctionAsset,
 };
 
 const SIGN_PDA_TOPUP_TARGET_LAMPORTS: u64 = 10_000_000;
 const MPC_TIMEOUT_SECONDS: i64 = 24 * 60 * 60;
+const ITEM_ESCROW_AMOUNT: u64 = 1;
 
 fn is_zero_entry(entry: &BidEntry) -> bool {
     entry.pub_key.iter().all(|b| *b == 0)
@@ -27,6 +29,12 @@ pub fn create_auction(
     reserve_price: Option<u64>,
 ) -> Result<()> {
     let auction = &mut ctx.accounts.auction;
+
+    require!(
+        ctx.accounts.item_mint.decimals == 0,
+        EbidzError::UnsupportedAssetMint
+    );
+
     auction.creator = ctx.accounts.creator.key();
     auction.item_mint = ctx.accounts.item_mint.key();
     auction.auction_type = auction_type;
@@ -42,6 +50,20 @@ pub fn create_auction(
     let mut bids_data = ctx.accounts.bids_data.load_init()?;
     bids_data.auction = auction.key();
     bids_data.bump = ctx.bumps.bids_data;
+
+    token_interface::transfer_checked(
+        CpiContext::new(
+            ctx.accounts.token_program.to_account_info(),
+            TransferChecked {
+                from: ctx.accounts.creator_item_account.to_account_info(),
+                mint: ctx.accounts.item_mint.to_account_info(),
+                to: ctx.accounts.auction_item_vault.to_account_info(),
+                authority: ctx.accounts.creator.to_account_info(),
+            },
+        ),
+        ITEM_ESCROW_AMOUNT,
+        ctx.accounts.item_mint.decimals,
+    )?;
 
     Ok(())
 }
@@ -63,6 +85,10 @@ pub fn submit_bid(
     require!(
         auction.status == AuctionStatus::Active,
         EbidzError::InvalidAuctionState
+    );
+    require!(
+        ctx.accounts.bidder.key() != auction.creator,
+        EbidzError::CreatorCannotBid
     );
     require!(
         auction.bid_count < MAX_BIDS as u64,
@@ -367,6 +393,107 @@ pub fn force_cancel(ctx: Context<ForceCancel>) -> Result<()> {
     emit!(AuctionCancelled {
         auction: auction.key(),
     });
+
+    Ok(())
+}
+
+pub fn claim_winning_asset(ctx: Context<ClaimWinningAsset>) -> Result<()> {
+    let auction = &ctx.accounts.auction;
+    let winner = auction.winner.ok_or(EbidzError::WinnerNotSet)?;
+
+    require!(winner == ctx.accounts.winner.key(), EbidzError::NotAuctionWinner);
+    require!(
+        ctx.accounts.auction_item_vault.amount >= ITEM_ESCROW_AMOUNT,
+        EbidzError::AssetAlreadyClaimed
+    );
+
+    let deadline_bytes = auction.deadline.to_le_bytes();
+    let signer_seeds: &[&[u8]] = &[
+        b"auction",
+        auction.creator.as_ref(),
+        &deadline_bytes,
+        &[auction.bump],
+    ];
+
+    token_interface::transfer_checked(
+        CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            TransferChecked {
+                from: ctx.accounts.auction_item_vault.to_account_info(),
+                mint: ctx.accounts.item_mint.to_account_info(),
+                to: ctx.accounts.winner_item_account.to_account_info(),
+                authority: ctx.accounts.auction.to_account_info(),
+            },
+            &[signer_seeds],
+        ),
+        ITEM_ESCROW_AMOUNT,
+        ctx.accounts.item_mint.decimals,
+    )?;
+
+    Ok(())
+}
+
+pub fn claim_seller_proceeds(ctx: Context<ClaimSellerProceeds>) -> Result<()> {
+    let auction = &ctx.accounts.auction;
+    let winner = auction.winner.ok_or(EbidzError::WinnerNotSet)?;
+    let clearing_price = auction
+        .clearing_price
+        .ok_or(EbidzError::InvalidAuctionState)?;
+
+    let winner_bid = &mut ctx.accounts.winner_bid;
+    require!(winner_bid.bidder == winner, EbidzError::InvalidAuctionState);
+    require!(!winner_bid.refunded, EbidzError::AlreadyRefunded);
+    require!(winner_bid.deposit >= clearing_price, EbidzError::DepositTooLow);
+    require!(
+        winner_bid.deposit == clearing_price,
+        EbidzError::WinningDepositMismatch
+    );
+
+    let vault_info = ctx.accounts.vault.to_account_info();
+    let creator_info = ctx.accounts.creator.to_account_info();
+    require!(
+        vault_info.lamports() >= clearing_price,
+        EbidzError::DepositTooLow
+    );
+
+    **vault_info.try_borrow_mut_lamports()? -= clearing_price;
+    **creator_info.try_borrow_mut_lamports()? += clearing_price;
+
+    winner_bid.deposit = 0;
+    winner_bid.refunded = true;
+
+    Ok(())
+}
+
+pub fn reclaim_auction_asset(ctx: Context<ReclaimAuctionAsset>) -> Result<()> {
+    let auction = &ctx.accounts.auction;
+    require!(
+        ctx.accounts.auction_item_vault.amount >= ITEM_ESCROW_AMOUNT,
+        EbidzError::AssetAlreadyClaimed
+    );
+
+    let deadline_bytes = auction.deadline.to_le_bytes();
+    let signer_seeds: &[&[u8]] = &[
+        b"auction",
+        auction.creator.as_ref(),
+        &deadline_bytes,
+        &[auction.bump],
+    ];
+
+    token_interface::transfer_checked(
+        CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            TransferChecked {
+                from: ctx.accounts.auction_item_vault.to_account_info(),
+                mint: ctx.accounts.item_mint.to_account_info(),
+                to: ctx.accounts.creator_item_account.to_account_info(),
+                authority: ctx.accounts.auction.to_account_info(),
+            },
+            &[signer_seeds],
+        ),
+        ITEM_ESCROW_AMOUNT,
+        ctx.accounts.item_mint.decimals,
+    )?;
 
     Ok(())
 }

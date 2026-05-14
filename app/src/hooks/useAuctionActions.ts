@@ -22,6 +22,16 @@ import {
   getArciumProgramId,
 } from '@arcium-hq/client';
 
+const TOKEN_PROGRAM_ID = new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
+const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
+
+function ataFor(owner: PublicKey, mint: PublicKey): PublicKey {
+  return PublicKey.findProgramAddressSync(
+    [owner.toBuffer(), TOKEN_PROGRAM_ID.toBuffer(), mint.toBuffer()],
+    ASSOCIATED_TOKEN_PROGRAM_ID,
+  )[0];
+}
+
 function getSignPdaAddress(): PublicKey {
   return PublicKey.findProgramAddressSync(
     [Buffer.from('ArciumSignerAccount')],
@@ -286,4 +296,120 @@ export function useForceCancel() {
   );
 
   return { forceCancel, loading, txSig, error };
+}
+
+export function useClaimWinningAsset() {
+  const { connection } = useConnection();
+  const wallet = useWallet();
+  const [loading, setLoading] = useState(false);
+  const [txSig, setTxSig] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const claimWinningAsset = useCallback(
+    async (auctionPubkey?: string, itemMint?: string) => {
+      if (!wallet.publicKey || !wallet.signTransaction || !auctionPubkey || !itemMint) {
+        setError('Wallet not connected');
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setTxSig(null);
+        setError(null);
+
+        const signerWallet = {
+          publicKey: wallet.publicKey,
+          signTransaction: wallet.signTransaction,
+          signAllTransactions: wallet.signAllTransactions ?? (async (txs: any[]) => txs),
+        };
+        const provider = new AnchorProvider(connection, signerWallet, { commitment: 'confirmed' });
+        const idl = JSON.parse(JSON.stringify({ ...EBIDZ_IDL, address: EBIDZ_PROGRAM_ID })) as unknown as Idl;
+        const program = new Program(idl, provider);
+
+        const auctionKey = new PublicKey(auctionPubkey);
+        const mintKey = new PublicKey(itemMint);
+        const auctionItemVault = ataFor(auctionKey, mintKey);
+        const winnerItemAccount = ataFor(wallet.publicKey, mintKey);
+
+        const sig = await (program.methods as any)
+          .claimWinningAsset()
+          .accounts({
+            winner: wallet.publicKey,
+            auction: auctionKey,
+            itemMint: mintKey,
+            auctionItemVault,
+            winnerItemAccount,
+            tokenProgram: TOKEN_PROGRAM_ID,
+            associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+            systemProgram: SystemProgram.programId,
+          })
+          .rpc({ commitment: 'confirmed' });
+
+        setTxSig(sig);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Unknown error');
+      } finally {
+        setLoading(false);
+      }
+    },
+    [wallet.publicKey, wallet.signTransaction, wallet.signAllTransactions, connection],
+  );
+
+  return { claimWinningAsset, loading, txSig, error };
+}
+
+export function useClaimSellerProceeds() {
+  const { connection } = useConnection();
+  const wallet = useWallet();
+  const [loading, setLoading] = useState(false);
+  const [txSig, setTxSig] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const claimSellerProceeds = useCallback(
+    async (auctionPubkey?: string, winnerPubkey?: string) => {
+      if (!wallet.publicKey || !wallet.signTransaction || !auctionPubkey || !winnerPubkey) {
+        setError('Wallet not connected');
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setTxSig(null);
+        setError(null);
+
+        const signerWallet = {
+          publicKey: wallet.publicKey,
+          signTransaction: wallet.signTransaction,
+          signAllTransactions: wallet.signAllTransactions ?? (async (txs: any[]) => txs),
+        };
+        const provider = new AnchorProvider(connection, signerWallet, { commitment: 'confirmed' });
+        const idl = JSON.parse(JSON.stringify({ ...EBIDZ_IDL, address: EBIDZ_PROGRAM_ID })) as unknown as Idl;
+        const program = new Program(idl, provider);
+
+        const auctionKey = new PublicKey(auctionPubkey);
+        const winnerKey = new PublicKey(winnerPubkey);
+        const [winnerBid] = bidPda(auctionKey, winnerKey);
+        const [vault] = vaultPda(auctionKey);
+
+        const sig = await (program.methods as any)
+          .claimSellerProceeds()
+          .accounts({
+            creator: wallet.publicKey,
+            auction: auctionKey,
+            winnerBid,
+            vault,
+          })
+          .rpc({ commitment: 'confirmed' });
+
+        setTxSig(sig);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Unknown error');
+      } finally {
+        setLoading(false);
+      }
+    },
+    [wallet.publicKey, wallet.signTransaction, wallet.signAllTransactions, connection],
+  );
+
+  return { claimSellerProceeds, loading, txSig, error };
 }

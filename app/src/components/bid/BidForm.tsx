@@ -12,39 +12,52 @@ import { useBid } from '@/hooks/useBid';
 type Props = {
   auctionPubkey: string;
   minBid?: number;   // SOL
+  auctionCreator?: string;
 };
 
-export function BidForm({ auctionPubkey, minBid = 0 }: Props) {
+export function BidForm({ auctionPubkey, minBid = 0, auctionCreator }: Props) {
   const { publicKey } = useWallet();
   const [amount, setAmount] = useState('');
-  const { status, txSig, error, submitBid, reset } = useBid();
+  const { status, txSig, error, submitBid } = useBid();
 
+  const isCreator = !!publicKey && !!auctionCreator && publicKey.toString() === auctionCreator;
   const num = parseFloat(amount);
-  const valid = !Number.isNaN(num) && num > 0 && num >= minBid;
+  const valid = !Number.isNaN(num) && num > 0 && num >= minBid && !isCreator;
   const submitting = status === 'encrypting' || status === 'signing' || status === 'confirming';
   const sealed = status === 'sealed';
+
+  if (isCreator) {
+    return (
+      <div className="border border-border-subtle bg-bg-elevated/40 px-4 py-5">
+        <div className="flex items-start gap-2.5">
+          <AlertCircle size={14} className="text-accent-amber mt-0.5 shrink-0" />
+          <div>
+            <p className="text-sm text-text-primary font-medium mb-1">
+              You can&apos;t bid on your own auction
+            </p>
+            <p className="text-xs text-text-secondary leading-relaxed">
+              The program rejects bids from the creator. When this auction settles,
+              use <span className="font-mono text-accent-bright">Claim Seller Proceeds</span>
+              {' '}to withdraw the winning bid&apos;s SOL — or reclaim your asset if no bids clear the reserve.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!valid || !publicKey) return;
-    // Over-deposit by 10% to obscure true valuation (bidder can choose more)
-    const deposit = Math.ceil(num * 1.1 * 100) / 100;
+    const deposit = num;
     await submitBid(auctionPubkey, num, deposit);
   }
 
   if (sealed) {
-    return (
-      <BidSealAnimation
-        amount={num}
-        onReset={() => {
-          reset();
-          setAmount('');
-        }}
-      />
-    );
+    return <BidSealAnimation amount={num} />;
   }
 
-  const depositPreview = valid ? (Math.ceil(num * 1.1 * 100) / 100).toFixed(2) : '—';
+  const depositPreview = valid ? num.toFixed(2) : '—';
 
   return (
     <form onSubmit={submit} className="space-y-4">

@@ -12,6 +12,16 @@ import { EBIDZ_IDL, EBIDZ_PROGRAM_ID } from '@/lib/idl';
 import { auctionPda, vaultPda, bidsDataPda, encStatePda } from '@/lib/pda';
 import { saveAuctionMeta } from '@/lib/auctionMeta';
 
+const TOKEN_PROGRAM_ID = new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
+const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
+
+function ataFor(owner: PublicKey, mint: PublicKey): PublicKey {
+  return PublicKey.findProgramAddressSync(
+    [owner.toBuffer(), TOKEN_PROGRAM_ID.toBuffer(), mint.toBuffer()],
+    ASSOCIATED_TOKEN_PROGRAM_ID,
+  )[0];
+}
+
 export type CreateAuctionParams = {
   itemMint: string;
   auctionType: 'first-price' | 'vickrey';
@@ -69,6 +79,8 @@ export function useCreateAuction() {
         const [vault] = vaultPda(auction);
         const [bidsData] = bidsDataPda(auction);
         const [encState] = encStatePda(auction);
+        const creatorItemAccount = ataFor(wallet.publicKey, itemMintKey);
+        const auctionItemVault = ataFor(auction, itemMintKey);
 
         // Map UI type → onchain enum
         const auctionTypeArg =
@@ -102,11 +114,19 @@ export function useCreateAuction() {
           creator: wallet.publicKey,
           auction,
           vault,
+          creatorItemAccount,
+          auctionItemVault,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
         };
 
         if (useSnakeCaseAccounts) {
           createAccounts.bids_data = bidsData;
           createAccounts.item_mint = itemMintKey;
+          createAccounts.creator_item_account = creatorItemAccount;
+          createAccounts.auction_item_vault = auctionItemVault;
+          createAccounts.token_program = TOKEN_PROGRAM_ID;
+          createAccounts.associated_token_program = ASSOCIATED_TOKEN_PROGRAM_ID;
           createAccounts.system_program = SystemProgram.programId;
           if (accountNames.has('enc_state')) createAccounts.enc_state = encState;
         } else {

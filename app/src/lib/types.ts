@@ -6,6 +6,7 @@ export type Auction = {
     title: string;
     description: string;
     imageUrl: string;
+    itemMint?: string;
     creator: string;
     auctionType: AuctionType;
     reservePrice?: number; // lamports

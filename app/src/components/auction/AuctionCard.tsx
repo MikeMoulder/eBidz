@@ -1,3 +1,5 @@
+'use client';
+
 import Image from 'next/image';
 import Link from 'next/link';
 import { Users, Lock, ArrowUpRight } from 'lucide-react';
@@ -6,6 +8,7 @@ import { CountdownTimer } from './CountdownTimer';
 import { CiphertextScramble } from '@/components/arcium/CiphertextScramble';
 import { auctionTypeMeta, type Auction, type AuctionType } from '@/lib/types';
 import { formatSol, shortAddress } from '@/lib/format';
+import { useResolvedAuctionImage } from '@/hooks/useResolvedAuctionImage';
 
 const typeTone: Record<AuctionType, 'violet' | 'lavender' | 'green'> = {
   'first-price': 'violet',
@@ -16,6 +19,8 @@ export function AuctionCard({ auction, index }: { auction: Auction; index?: numb
   const meta = auctionTypeMeta[auction.auctionType];
   const settled = auction.status === 'settled';
   const expired = !settled && Date.now() > auction.deadline;
+  const resolvedImage = useResolvedAuctionImage(auction.id, auction.itemMint);
+  const imageSrc = auction.imageUrl || resolvedImage;
 
   return (
     <Link href={`/auction/${auction.id}`} className="group block">
@@ -45,11 +50,12 @@ export function AuctionCard({ auction, index }: { auction: Auction; index?: numb
 
         <div className="relative aspect-[4/3] overflow-hidden bg-bg-elevated">
           <Image
-            src={auction.imageUrl}
+            src={imageSrc}
             alt={auction.title}
             fill
             sizes="(max-width: 768px) 100vw, 33vw"
             className="object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+            unoptimized
           />
           <div className="absolute inset-0 bg-gradient-to-t from-bg-base via-bg-base/30 to-transparent" />
 

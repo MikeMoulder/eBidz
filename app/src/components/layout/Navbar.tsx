@@ -17,6 +17,7 @@ export function Navbar() {
 
           <nav className="hidden md:flex items-center gap-1 border-l border-border-subtle pl-6">
             <NavLink href="/#live">Auctions</NavLink>
+            <NavLink href="/my-auctions">My Auctions</NavLink>
             <NavLink href="/bids">My Bids</NavLink>
             <NavLink href="/create">Launch</NavLink>
             <NavLink href="/#how">Protocol</NavLink>

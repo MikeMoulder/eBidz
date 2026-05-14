@@ -7,10 +7,9 @@ import { CiphertextScramble } from '@/components/arcium/CiphertextScramble';
 
 type Props = {
   amount: number;
-  onReset: () => void;
 };
 
-export function BidSealAnimation({ amount, onReset }: Props) {
+export function BidSealAnimation({ amount }: Props) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -56,8 +55,8 @@ export function BidSealAnimation({ amount, onReset }: Props) {
         </Row>
       </div>
 
-      <Button variant="secondary" size="md" onClick={onReset} className="w-full">
-        Place another bid
+      <Button variant="secondary" size="md" disabled className="w-full">
+        <Check size={14} /> Bid Submitted!
       </Button>
     </motion.div>
   );

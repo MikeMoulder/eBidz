@@ -7,7 +7,14 @@ import {
   Lock, Cpu, Database, ShieldCheck, AlertCircle,
 } from 'lucide-react';
 import { useAuction } from '@/hooks/useAuctions';
-import { useClaimRefund, useCloseAuction, useForceCancel } from '@/hooks/useAuctionActions';
+import {
+  useClaimRefund,
+  useClaimSellerProceeds,
+  useClaimWinningAsset,
+  useCloseAuction,
+  useForceCancel,
+} from '@/hooks/useAuctionActions';
+import { useResolvedAuctionImage } from '@/hooks/useResolvedAuctionImage';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { shortAddress } from '@/lib/format';
 import { getAuctionMeta } from '@/lib/auctionMeta';
@@ -34,7 +41,22 @@ export function AuctionDetailClient({ auctionId, isRealPubkey }: Props) {
 
   const { close: closeAuction, loading: closing, txSig: closeSig, error: closeError } = useCloseAuction();
   const { claim: claimRefund, loading: claiming, txSig: refundSig } = useClaimRefund();
+  const {
+    claimWinningAsset,
+    loading: claimingItem,
+    txSig: claimItemSig,
+    error: claimItemError,
+  } = useClaimWinningAsset();
+  const {
+    claimSellerProceeds,
+    loading: claimingProceeds,
+    txSig: claimProceedsSig,
+    error: claimProceedsError,
+  } = useClaimSellerProceeds();
   const { forceCancel, loading: forceCancelling, txSig: forceCancelSig } = useForceCancel();
+
+  // Resolve display image — must run before any early returns so hook order stays stable.
+  const imageUrl = useResolvedAuctionImage(auctionId, chainAuction?.itemMint);
 
   // ── Early exits ──────────────────────────────────────────────────────────
   if (!isRealPubkey || (!chainAuction && !chainLoading)) {
@@ -71,7 +93,6 @@ export function AuctionDetailClient({ auctionId, isRealPubkey }: Props) {
 
   const meta = getAuctionMeta(auctionId);
 
-  const imageUrl = meta?.imageUrl || `https://picsum.photos/seed/${auctionId.slice(0, 8)}/1000/1000`;
   const title = meta?.title || shortAddress(auctionId);
   const description = meta?.description || 'Onchain sealed-bid auction powered by Arcium MPC.';
   const creator = chainAuction!.creator;
@@ -80,6 +101,8 @@ export function AuctionDetailClient({ auctionId, isRealPubkey }: Props) {
   const settled = status === 'settled';
   const computing = status === 'computing';
   const cancelled = status === 'cancelled';
+  const isWinner = !!publicKey && chainAuction!.winner === publicKey.toString();
+  const isCreator = !!publicKey && creator === publicKey.toString();
 
   // ── Crank: can this user close the auction? ──────────────────────────────
   const pastDeadline = Date.now() > deadlineMs;
@@ -128,7 +151,7 @@ export function AuctionDetailClient({ auctionId, isRealPubkey }: Props) {
           {/* Image */}
           <div className="relative border border-border-subtle bg-bg-elevated">
             <div className="relative aspect-[16/10] overflow-hidden">
-              <Image src={imageUrl} alt={title} fill sizes="(max-width: 1024px) 100vw, 60vw" className="object-cover" priority />
+              <Image src={imageUrl} alt={title} fill sizes="(max-width: 1024px) 100vw, 60vw" className="object-cover" priority unoptimized />
               <div className="absolute inset-0 bg-gradient-to-t from-bg-base/80 via-transparent to-transparent" />
               <div className="absolute top-4 left-4 flex items-center gap-1.5">
                 <Badge tone="violet">{auctionTypeLabel}</Badge>
@@ -190,6 +213,7 @@ export function AuctionDetailClient({ auctionId, isRealPubkey }: Props) {
             <div className="border border-border-subtle bg-bg-surface divide-y divide-border-subtle">
               <Ref label="Auction PDA" value={shortAddress(auctionId)} />
               {creator && <Ref label="Creator" value={shortAddress(creator)} />}
+              <Ref label="Item mint" value={shortAddress(chainAuction!.itemMint)} />
               <Ref label="MXE program" value="ARCiUM…Wxd5" />
               <Ref label="Cluster pubkey" value={<CiphertextScramble length={16} />} />
             </div>
@@ -199,14 +223,76 @@ export function AuctionDetailClient({ auctionId, isRealPubkey }: Props) {
         {/* ── RIGHT sidebar ── */}
         <aside className="lg:sticky lg:top-20 self-start space-y-4">
           {settled ? (
-            <ResultReveal
-              winner={chainAuction!.winner ?? ''}
-              clearingPrice={
-                chainAuction!.clearingPrice ? Number(BigInt(chainAuction!.clearingPrice)) : 0
-              }
-              isWinner={chainAuction!.winner === publicKey?.toString()}
-              auctionPubkey={auctionId}
-            />
+            <div className="space-y-4">
+              <ResultReveal
+                winner={chainAuction!.winner ?? ''}
+                clearingPrice={
+                  chainAuction!.clearingPrice ? Number(BigInt(chainAuction!.clearingPrice)) : 0
+                }
+                isWinner={isWinner}
+                isCreator={isCreator}
+                auctionPubkey={auctionId}
+                onClaimItem={
+                  isWinner
+                    ? () => claimWinningAsset(auctionId, chainAuction!.itemMint).then(refetch)
+                    : undefined
+                }
+                onClaimRefund={!isCreator && !isWinner ? () => claimRefund(auctionId) : undefined}
+                onClaimProceeds={
+                  isCreator
+                    ? () => claimSellerProceeds(auctionId, chainAuction!.winner ?? undefined).then(refetch)
+                    : undefined
+                }
+                claiming={
+                  isCreator ? claimingProceeds : isWinner ? claimingItem : claiming
+                }
+                claimed={
+                  isCreator
+                    ? !!claimProceedsSig
+                    : isWinner
+                      ? !!claimItemSig
+                      : !!refundSig
+                }
+                proceedsDisabled={isCreator && !chainAuction!.winner}
+              />
+
+              {publicKey && (claimItemSig || claimProceedsSig || refundSig || claimItemError || claimProceedsError) ? (
+                <div className="border border-border-subtle bg-bg-surface p-4 space-y-3">
+                  {claimItemError ? <p className="text-xs text-state-danger">{claimItemError}</p> : null}
+                  {claimProceedsError ? <p className="text-xs text-state-danger">{claimProceedsError}</p> : null}
+                  {claimItemSig ? (
+                    <a
+                      href={`https://explorer.solana.com/tx/${claimItemSig}?cluster=devnet`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 flex items-center justify-center gap-1 text-[10px] font-mono uppercase tracking-widest text-accent-bright hover:underline"
+                    >
+                      View claim-item tx <ExternalLink size={9} />
+                    </a>
+                  ) : null}
+                  {claimProceedsSig ? (
+                    <a
+                      href={`https://explorer.solana.com/tx/${claimProceedsSig}?cluster=devnet`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 flex items-center justify-center gap-1 text-[10px] font-mono uppercase tracking-widest text-accent-bright hover:underline"
+                    >
+                      View claim-proceeds tx <ExternalLink size={9} />
+                    </a>
+                  ) : null}
+                  {refundSig ? (
+                    <a
+                      href={`https://explorer.solana.com/tx/${refundSig}?cluster=devnet`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 flex items-center justify-center gap-1 text-[10px] font-mono uppercase tracking-widest text-accent-bright hover:underline"
+                    >
+                      View refund tx <ExternalLink size={9} />
+                    </a>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
           ) : cancelled ? (
             <div className="border border-border-subtle bg-bg-surface p-5">
               <p className="font-display text-lg font-bold mb-2">Auction cancelled</p>
@@ -301,10 +387,14 @@ export function AuctionDetailClient({ auctionId, isRealPubkey }: Props) {
                       size="sm"
                       variant="outline"
                       onClick={() => closeAuction(auctionId, chainAuction!.auctionType)}
-                      disabled={closing}
+                      disabled={closing || !!closeSig}
                       className="w-full"
                     >
-                      {closing ? 'Closing…' : 'Close Auction & Start MPC'}
+                      {closeSig
+                        ? 'MPC Started'
+                        : closing
+                          ? 'Closing…'
+                          : 'Close Auction & Start MPC'}
                     </Button>
                     {closeError ? (
                       <p className="mt-2 text-xs text-state-danger break-words">{closeError}</p>
@@ -324,6 +414,7 @@ export function AuctionDetailClient({ auctionId, isRealPubkey }: Props) {
                 <BidForm
                   auctionPubkey={auctionId}
                   minBid={reserveSol ?? 0}
+                  auctionCreator={creator}
                 />
               </div>
             </div>
@@ -334,7 +425,7 @@ export function AuctionDetailClient({ auctionId, isRealPubkey }: Props) {
             <div className="px-4 py-2.5 border-b border-border-subtle flex items-center justify-between">
               <span className="label-eyebrow">Asset</span>
               <a
-                href={`https://explorer.solana.com/address/${auctionId}?cluster=devnet`}
+                href={`https://explorer.solana.com/address/${chainAuction!.itemMint}?cluster=devnet`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="font-mono text-[10px] uppercase tracking-widest text-text-muted hover:text-accent-bright inline-flex items-center gap-1"
@@ -343,7 +434,7 @@ export function AuctionDetailClient({ auctionId, isRealPubkey }: Props) {
               </a>
             </div>
             <div className="divide-y divide-border-subtle">
-              <Ref label="Mint" value={shortAddress(auctionId)} />
+              <Ref label="Mint" value={shortAddress(chainAuction!.itemMint)} />
               <Ref label="Units" value={units.toString()} />
               {reserveSol && <Ref label="Reserve" value={`${reserveSol} SOL`} />}
             </div>

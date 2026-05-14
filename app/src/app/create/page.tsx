@@ -1,14 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Lock, Info, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { Lock, Info, ArrowRight, CheckCircle2, AlertTriangle, XCircle, ExternalLink } from 'lucide-react';
 import { PublicKey } from '@solana/web3.js';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useWalletModal } from '@solana/wallet-adapter-react-ui';
 import { Button } from '@/components/primitives/Button';
 import { Badge } from '@/components/primitives/Badge';
 import { useCreateAuction } from '@/hooks/useCreateAuction';
+import { useNftMetadata } from '@/hooks/useNftMetadata';
 
 export default function CreateAuctionPage() {
   const router = useRouter();
@@ -37,19 +39,40 @@ export default function CreateAuctionPage() {
   const submitting = createStatus === 'signing' || createStatus === 'confirming';
   const done = createStatus === 'done';
 
+  const lookup = useNftMetadata(itemMintInput);
+  const resolvedImage = imageUrl.trim() || lookup.nft?.image || '';
+  const decimalsBad = lookup.status === 'ok' && lookup.nft?.decimals !== 0;
+  const notOwned = lookup.status === 'ok' && lookup.owned === false;
+
+  // Floor for the deadline picker — must be at least one minute ahead of "now".
+  // Set after mount so SSR + hydration match (server "now" vs client "now" differ),
+  // then refresh every 30s so a long-open form doesn't go stale.
+  const [minDeadline, setMinDeadline] = useState('');
+  useEffect(() => {
+    const tick = () => setMinDeadline(toLocalDatetimeInput(new Date(Date.now() + 60_000)));
+    tick();
+    const id = setInterval(tick, 30_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const deadlineMs = deadline ? new Date(deadline).getTime() : NaN;
+  const deadlineTooSoon = Boolean(deadline) && Number.isFinite(deadlineMs) && deadlineMs < Date.now() + 60_000;
+  const blocksLaunch = decimalsBad || notOwned || deadlineTooSoon;
+
   async function handleLaunch(e: React.FormEvent) {
     e.preventDefault();
     if (!publicKey) { setVisible(true); return; }
-    if (!itemMintInput || !deadline || itemMintInvalid) return;
+    if (!itemMintInput || !deadline || itemMintInvalid || blocksLaunch) return;
     const deadlineUnix = Math.floor(new Date(deadline).getTime() / 1000);
+    const manualImage = normalizeImageUrl(imageUrl);
     const result = await create({
       itemMint: itemMintInput,
       auctionType,
       reserveSol: reserveSol ? parseFloat(reserveSol) : undefined,
       deadlineUnixSeconds: deadlineUnix,
-      title: title.trim() || undefined,
+      title: title.trim() || lookup.nft?.name || undefined,
       description: description.trim() || undefined,
-      imageUrl: normalizeImageUrl(imageUrl),
+      imageUrl: manualImage || lookup.nft?.image,
     });
 
     if (result?.auctionKey) {
@@ -120,11 +143,27 @@ export default function CreateAuctionPage() {
                           Enter a valid Solana public key.
                         </p>
                       )}
+                      <a
+                        href="https://solana-nft-minter-gbzs.onrender.com/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-mono text-accent-bright hover:underline"
+                      >
+                        Don&apos;t have a devnet NFT? Mint one
+                        <ExternalLink size={10} />
+                      </a>
                     </Field>
-                    <Field label="Image URL">
+                    <Field label="Image URL override" hint="Auto-fetched from metadata">
                       <Input placeholder="https://…" value={imageUrl} onChange={e => setImageUrl(e.target.value)} />
                     </Field>
                   </div>
+
+                  <NftPreview
+                    lookup={lookup}
+                    walletConnected={!!publicKey}
+                    overrideImage={imageUrl.trim()}
+                    resolvedImage={resolvedImage}
+                  />
                 </FormSection>
 
                 {/* Section: Mechanism */}
@@ -140,8 +179,9 @@ export default function CreateAuctionPage() {
                       <TypeOption
                         title="Vickrey"
                         desc="Highest bid wins. Pays second-highest."
-                        selected={auctionType === 'vickrey'}
-                        onSelect={() => setAuctionType('vickrey')}
+                        selected={false}
+                        disabled
+                        badgeText="Coming soon"
                       />
                     </div>
                   </Field>
@@ -170,12 +210,18 @@ export default function CreateAuctionPage() {
 
                 {/* Section: Schedule */}
                 <FormSection number="03" title="Schedule">
-                  <Field label="Deadline" required hint="When sealed bids close.">
+                  <Field label="Deadline" required hint="At least 1 minute from now.">
                     <Input
                       type="datetime-local"
                       value={deadline}
+                      min={minDeadline}
                       onChange={e => setDeadline(e.target.value)}
                     />
+                    {deadlineTooSoon && (
+                      <p className="mt-1 text-[11px] text-state-danger font-mono">
+                        Deadline must be at least 1 minute in the future.
+                      </p>
+                    )}
                   </Field>
                 </FormSection>
 
@@ -185,13 +231,15 @@ export default function CreateAuctionPage() {
                     <Info size={14} className="text-accent-bright mt-0.5 shrink-0" />
                     <div>
                       <p className="text-sm text-text-primary mb-2 font-medium">
-                        Once your auction has its first bid, it becomes immutable.
+                        Launching transfers your asset into program escrow.
                       </p>
                       <p className="text-xs text-text-muted leading-relaxed">
-                        Bidders&apos; deposits are held in a program-derived escrow
-                        vault — neither you, eBidz Labs, nor any admin has
-                        withdrawal rights. Settlement is automatic via Arcium MPC
-                        callback.
+                        1 unit of the item mint moves from your wallet into a
+                        PDA-owned vault in the same transaction — neither you,
+                        eBidz Labs, nor any admin can withdraw it. The winner
+                        claims it after MPC settlement; if no bid clears the
+                        reserve, you can reclaim it. Bidders&apos; SOL deposits
+                        sit in the same escrow until settlement or refund.
                       </p>
                     </div>
                   </div>
@@ -207,14 +255,20 @@ export default function CreateAuctionPage() {
                   <Button
                     type="submit"
                     size="md"
-                    disabled={submitting || !deadline || !itemMintInput || itemMintInvalid}
+                    disabled={submitting || !deadline || !itemMintInput || itemMintInvalid || blocksLaunch}
                   >
                     <Lock size={13} />
                     {submitting
                       ? 'Signing…'
                       : !publicKey
                         ? 'Connect wallet to launch'
-                        : 'Launch auction'}
+                        : notOwned
+                          ? 'You don’t hold this NFT'
+                          : decimalsBad
+                            ? 'Token must have 0 decimals'
+                            : deadlineTooSoon
+                              ? 'Pick a future deadline'
+                              : 'Launch auction'}
                     <ArrowRight size={12} />
                   </Button>
                 </div>
@@ -247,12 +301,13 @@ export default function CreateAuctionPage() {
             </div>
             <div className="p-4 space-y-2.5 font-mono text-[11px]">
               <CostRow label="Auction PDA rent" value="~0.002 SOL" />
-              <CostRow label="Escrow vault rent" value="~0.001 SOL" />
+              <CostRow label="SOL deposit vault rent" value="~0.001 SOL" />
+              <CostRow label="Item escrow ATA rent" value="~0.002 SOL" />
               <CostRow label="MXE deployment" value="~0.005 SOL" />
               <CostRow label="Per-bid txn (bidder)" value="~0.000005 SOL" />
               <div className="pt-2 mt-2 border-t border-border-subtle flex justify-between">
                 <span className="text-text-muted uppercase tracking-widest">Total · creator</span>
-                <span className="text-accent-bright font-semibold">~0.008 SOL</span>
+                <span className="text-accent-bright font-semibold">~0.010 SOL</span>
               </div>
             </div>
           </div>
@@ -417,4 +472,103 @@ function isValidPublicKey(value: string): boolean {
   } catch {
     return false;
   }
+}
+
+function toLocalDatetimeInput(date: Date): string {
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function NftPreview({
+  lookup,
+  walletConnected,
+  overrideImage,
+  resolvedImage,
+}: {
+  lookup: ReturnType<typeof useNftMetadata>;
+  walletConnected: boolean;
+  overrideImage: string;
+  resolvedImage: string;
+}) {
+  if (lookup.status === 'idle' || lookup.status === 'invalid') return null;
+
+  if (lookup.status === 'loading') {
+    return (
+      <div className="mt-2 border border-border-subtle bg-bg-base/40 px-4 py-3 flex items-center gap-2 text-xs text-text-muted font-mono">
+        <span className="inline-block h-1.5 w-1.5 bg-accent-primary/60 animate-pulse" />
+        Resolving NFT metadata…
+      </div>
+    );
+  }
+
+  if (lookup.status === 'not-found' || lookup.status === 'error') {
+    return (
+      <div className="mt-2 border border-state-warning/30 bg-state-warning/[0.06] px-4 py-3 flex items-start gap-2.5 text-xs">
+        <AlertTriangle size={13} className="text-state-warning mt-0.5 shrink-0" />
+        <div>
+          <p className="text-text-primary font-medium mb-0.5">
+            {lookup.status === 'not-found' ? 'Mint not found on this cluster' : 'Lookup failed'}
+          </p>
+          <p className="text-text-muted leading-relaxed">
+            {lookup.error || 'Double-check the address. You can still launch if the mint exists — paste an Image URL override above to display it.'}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const nft = lookup.nft!;
+  const decimalsBad = nft.decimals !== 0;
+  const notOwned = lookup.owned === false;
+  const previewImage = overrideImage || resolvedImage;
+
+  return (
+    <div className="mt-2 border border-border-subtle bg-bg-base/40">
+      <div className="flex gap-3 p-3">
+        <div className="relative h-20 w-20 shrink-0 border border-border-subtle bg-bg-elevated overflow-hidden">
+          {previewImage ? (
+            <Image src={previewImage} alt={nft.name || 'NFT preview'} fill sizes="80px" className="object-cover" unoptimized />
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center text-[10px] font-mono text-text-faint uppercase tracking-widest">
+              no image
+            </div>
+          )}
+        </div>
+        <div className="min-w-0 flex-1 flex flex-col justify-between">
+          <div>
+            <p className="font-display text-sm font-semibold text-text-primary truncate">
+              {nft.name || 'Unnamed token'}
+              {nft.symbol ? <span className="ml-2 font-mono text-[10px] text-text-faint uppercase">{nft.symbol}</span> : null}
+            </p>
+            <p className="font-mono text-[10px] text-text-muted mt-0.5">
+              decimals: {nft.decimals}
+              {nft.uri ? ' · metadata: on-chain' : ' · metadata: none'}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-1.5 mt-1.5">
+            {walletConnected ? (
+              notOwned ? (
+                <span className="inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-widest text-state-danger">
+                  <XCircle size={10} /> not in your wallet
+                </span>
+              ) : lookup.owned ? (
+                <span className="inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-widest text-state-success">
+                  <CheckCircle2 size={10} /> you hold this NFT
+                </span>
+              ) : null
+            ) : (
+              <span className="text-[10px] font-mono uppercase tracking-widest text-text-faint">
+                connect wallet to verify ownership
+              </span>
+            )}
+            {decimalsBad ? (
+              <span className="inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-widest text-state-danger">
+                <XCircle size={10} /> needs 0 decimals
+              </span>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }

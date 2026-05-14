@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Trophy, ExternalLink } from 'lucide-react';
+import { Trophy, Check } from 'lucide-react';
 import { Button } from '@/components/primitives/Button';
 import { ClusterPulse } from '@/components/arcium/ClusterPulse';
 import { formatSol, shortAddress } from '@/lib/format';
@@ -10,10 +10,29 @@ type Props = {
   winner: string;
   clearingPrice: number;
   isWinner?: boolean;
+  isCreator?: boolean;
   auctionPubkey?: string; // real chain pubkey for claim / explorer links
+  onClaimItem?: () => void;
+  onClaimRefund?: () => void;
+  onClaimProceeds?: () => void;
+  claiming?: boolean;
+  claimed?: boolean;
+  proceedsDisabled?: boolean;
 };
 
-export function ResultReveal({ winner, clearingPrice, isWinner, auctionPubkey }: Props) {
+export function ResultReveal({
+  winner,
+  clearingPrice,
+  isWinner,
+  isCreator,
+  auctionPubkey,
+  onClaimItem,
+  onClaimRefund,
+  onClaimProceeds,
+  claiming,
+  claimed,
+  proceedsDisabled,
+}: Props) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
@@ -54,28 +73,61 @@ export function ResultReveal({ winner, clearingPrice, isWinner, auctionPubkey }:
           <Row label="Settled tx">{auctionPubkey ? shortAddress(auctionPubkey, 8) : '5x...zV2k (devnet)'}</Row>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-2">
-          {isWinner ? (
-            <Button size="md" className="flex-1">
-              Claim your item
+        <div className="flex justify-center">
+          {isCreator ? (
+            <Button
+              size="md"
+              variant="outline"
+              className="w-full"
+              disabled={claiming || claimed || proceedsDisabled}
+              onClick={onClaimProceeds}
+            >
+              {claimed ? (
+                <>
+                  <Check size={14} /> Proceeds Claimed
+                </>
+              ) : claiming ? (
+                'Claiming…'
+              ) : (
+                'Claim Seller Proceeds'
+              )}
+            </Button>
+          ) : isWinner ? (
+            <Button
+              size="md"
+              className="w-full"
+              disabled={claiming || claimed}
+              onClick={onClaimItem}
+            >
+              {claimed ? (
+                <>
+                  <Check size={14} /> Claimed
+                </>
+              ) : claiming ? (
+                'Claiming…'
+              ) : (
+                'Claim your item'
+              )}
             </Button>
           ) : (
-            <Button size="md" variant="secondary" className="flex-1">
-              Claim refund
+            <Button
+              size="md"
+              variant="secondary"
+              className="w-full"
+              disabled={claiming || claimed}
+              onClick={onClaimRefund}
+            >
+              {claimed ? (
+                <>
+                  <Check size={14} /> Refunded
+                </>
+              ) : claiming ? (
+                'Claiming…'
+              ) : (
+                'Claim refund'
+              )}
             </Button>
           )}
-          <Button
-            variant="ghost"
-            size="md"
-            onClick={() => {
-              if (auctionPubkey) {
-                window.open(`https://explorer.solana.com/address/${auctionPubkey}?cluster=devnet`, '_blank');
-              }
-            }}
-          >
-            Explorer
-            <ExternalLink size={12} />
-          </Button>
         </div>
       </div>
     </motion.div>

@@ -1,6 +1,10 @@
 use anchor_lang::prelude::*;
 use arcium_anchor::prelude::*;
 use arcium_client::idl::arcium::types::{CircuitSource, OffChainCircuitSource};
+use anchor_spl::{
+    associated_token::AssociatedToken,
+    token_interface::{Mint, TokenAccount, TokenInterface},
+};
 
 mod errors;
 mod instructions;
@@ -84,8 +88,24 @@ pub struct CreateAuction<'info> {
     )]
     pub bids_data: AccountLoader<'info, BidsData>,
 
-    /// CHECK: Validated by the item-transfer flow.
-    pub item_mint: UncheckedAccount<'info>,
+    pub item_mint: InterfaceAccount<'info, Mint>,
+
+    #[account(
+        mut,
+        associated_token::mint = item_mint,
+        associated_token::authority = creator,
+        associated_token::token_program = token_program,
+    )]
+    pub creator_item_account: InterfaceAccount<'info, TokenAccount>,
+
+    #[account(
+        init,
+        payer = creator,
+        associated_token::mint = item_mint,
+        associated_token::authority = auction,
+        associated_token::token_program = token_program,
+    )]
+    pub auction_item_vault: InterfaceAccount<'info, TokenAccount>,
 
     #[account(
         init_if_needed,
@@ -97,6 +117,8 @@ pub struct CreateAuction<'info> {
     /// CHECK: System-owned PDA vault.
     pub vault: UncheckedAccount<'info>,
 
+    pub token_program: Interface<'info, TokenInterface>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
 }
 
@@ -278,6 +300,116 @@ pub struct ForceCancel<'info> {
     pub auction: Account<'info, Auction>,
 }
 
+#[derive(Accounts)]
+pub struct ClaimWinningAsset<'info> {
+    #[account(mut)]
+    pub winner: Signer<'info>,
+
+    #[account(
+        seeds = [b"auction", auction.creator.as_ref(), &auction.deadline.to_le_bytes()],
+        bump = auction.bump,
+        constraint = auction.status == AuctionStatus::Settled @ EbidzError::InvalidAuctionState,
+    )]
+    pub auction: Account<'info, Auction>,
+
+    #[account(
+        constraint = auction.item_mint == item_mint.key() @ EbidzError::InvalidAuctionState,
+    )]
+    pub item_mint: InterfaceAccount<'info, Mint>,
+
+    #[account(
+        mut,
+        associated_token::mint = item_mint,
+        associated_token::authority = auction,
+        associated_token::token_program = token_program,
+    )]
+    pub auction_item_vault: InterfaceAccount<'info, TokenAccount>,
+
+    #[account(
+        init_if_needed,
+        payer = winner,
+        associated_token::mint = item_mint,
+        associated_token::authority = winner,
+        associated_token::token_program = token_program,
+    )]
+    pub winner_item_account: InterfaceAccount<'info, TokenAccount>,
+
+    pub token_program: Interface<'info, TokenInterface>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct ClaimSellerProceeds<'info> {
+    #[account(mut)]
+    pub creator: Signer<'info>,
+
+    #[account(
+        mut,
+        seeds = [b"auction", auction.creator.as_ref(), &auction.deadline.to_le_bytes()],
+        bump = auction.bump,
+        constraint = auction.creator == creator.key() @ EbidzError::Unauthorized,
+        constraint = auction.status == AuctionStatus::Settled @ EbidzError::InvalidAuctionState,
+    )]
+    pub auction: Account<'info, Auction>,
+
+    #[account(
+        mut,
+        seeds = [b"bid", auction.key().as_ref(), winner_bid.bidder.as_ref()],
+        bump = winner_bid.bump,
+        constraint = winner_bid.auction == auction.key() @ EbidzError::InvalidAuctionState,
+    )]
+    pub winner_bid: Account<'info, Bid>,
+
+    #[account(
+        mut,
+        seeds = [b"vault", auction.key().as_ref()],
+        bump,
+    )]
+    /// CHECK: PDA vault (program-owned in current deployment flow).
+    pub vault: UncheckedAccount<'info>,
+}
+
+#[derive(Accounts)]
+pub struct ReclaimAuctionAsset<'info> {
+    #[account(mut)]
+    pub creator: Signer<'info>,
+
+    #[account(
+        seeds = [b"auction", auction.creator.as_ref(), &auction.deadline.to_le_bytes()],
+        bump = auction.bump,
+        constraint = auction.creator == creator.key() @ EbidzError::Unauthorized,
+        constraint = auction.status == AuctionStatus::Cancelled @ EbidzError::InvalidAuctionState,
+    )]
+    pub auction: Account<'info, Auction>,
+
+    #[account(
+        constraint = auction.item_mint == item_mint.key() @ EbidzError::InvalidAuctionState,
+    )]
+    pub item_mint: InterfaceAccount<'info, Mint>,
+
+    #[account(
+        mut,
+        associated_token::mint = item_mint,
+        associated_token::authority = auction,
+        associated_token::token_program = token_program,
+    )]
+    pub auction_item_vault: InterfaceAccount<'info, TokenAccount>,
+
+    #[account(
+        init_if_needed,
+        payer = creator,
+        associated_token::mint = item_mint,
+        associated_token::authority = creator,
+        associated_token::token_program = token_program,
+    )]
+    pub creator_item_account: InterfaceAccount<'info, TokenAccount>,
+
+    pub token_program: Interface<'info, TokenInterface>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
+    pub system_program: Program<'info, System>,
+}
+
 #[arcium_program]
 pub mod ebidz {
     use super::*;
@@ -348,6 +480,18 @@ pub mod ebidz {
 
     pub fn force_cancel(ctx: Context<ForceCancel>) -> Result<()> {
         instructions::force_cancel(ctx)
+    }
+
+    pub fn claim_winning_asset(ctx: Context<ClaimWinningAsset>) -> Result<()> {
+        instructions::claim_winning_asset(ctx)
+    }
+
+    pub fn claim_seller_proceeds(ctx: Context<ClaimSellerProceeds>) -> Result<()> {
+        instructions::claim_seller_proceeds(ctx)
+    }
+
+    pub fn reclaim_auction_asset(ctx: Context<ReclaimAuctionAsset>) -> Result<()> {
+        instructions::reclaim_auction_asset(ctx)
     }
 }
 
