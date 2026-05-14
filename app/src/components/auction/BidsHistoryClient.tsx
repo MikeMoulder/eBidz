@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/primitives/Badge';
 import { Button } from '@/components/primitives/Button';
-import { getAuctionMeta } from '@/lib/auctionMeta';
+import { useResolvedAuctionDisplay } from '@/hooks/useResolvedAuctionImage';
 
 export function BidsHistoryClient() {
   const { publicKey } = useWallet();
@@ -137,9 +137,11 @@ export function BidsHistoryClient() {
 }
 
 function BidHistoryCard({ bid }: { bid: BidHistory }) {
-  const meta = getAuctionMeta(bid.auction.publicKey);
-  const title = meta?.title || shortAddress(bid.auction.publicKey, 8);
-  const imageUrl = meta?.imageUrl || `https://picsum.photos/seed/${bid.auction.publicKey.slice(0, 8)}/200/200`;
+  const { image: imageUrl, name } = useResolvedAuctionDisplay(
+    bid.auction.publicKey,
+    bid.auction.itemMint,
+  );
+  const title = name || shortAddress(bid.auction.publicKey, 8);
 
   const statusColor = bid.status === 'settled' ? 'green' : bid.status === 'computing' ? 'amber' : bid.status === 'cancelled' ? 'red' : 'live';
   const outcomeLabel = bid.status === 'settled'
@@ -179,7 +181,7 @@ function BidHistoryCard({ bid }: { bid: BidHistory }) {
         <div className="grid grid-cols-[60px_1fr_auto] md:grid-cols-[100px_1fr_auto_auto_auto] gap-4 items-center">
           {/* Thumbnail */}
           <div className="relative aspect-square rounded border border-border-subtle overflow-hidden bg-bg-elevated">
-            <Image src={imageUrl} alt={title} fill sizes="100px" className="object-cover" />
+            <Image src={imageUrl} alt={title} fill sizes="100px" className="object-cover" unoptimized />
           </div>
 
           {/* Title & Auction Details */}

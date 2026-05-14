@@ -36,7 +36,9 @@ export function liveToUIAuction(a: LiveAuction): Auction {
     deadline: a.deadlineMs,
     status,
     winner: a.winner ?? undefined,
-    clearingPrice: undefined,
+    clearingPrice: a.clearingPrice != null
+      ? Number((a.clearingPrice as any).toString())
+      : undefined,
   };
 }
 
