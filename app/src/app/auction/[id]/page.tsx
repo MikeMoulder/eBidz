@@ -1,4 +1,9 @@
-import { AuctionDetailClient } from '@/components/auction/AuctionDetailClient';
+import dynamicImport from 'next/dynamic';
+
+const AuctionDetailClient = dynamicImport(
+  () => import('@/components/auction/AuctionDetailClient').then((m) => m.AuctionDetailClient),
+  { ssr: false },
+);
 
 export const dynamic = 'force-dynamic';
 

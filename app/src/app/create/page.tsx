@@ -28,9 +28,7 @@ export default function CreateAuctionPage() {
     // Force https for common IPFS gateways that may return http URLs
     return trimmed.replace(/^http:\/\/((?:[^/]+\.)?ipfs\.(?:dweb\.link|nftstorage\.link|io))/, 'https://$1');
   }
-  const [auctionType, setAuctionType] = useState<'first-price' | 'vickrey' | 'uniform'>('first-price');
-  const uniformComingSoon = true;
-  const [units, setUnits] = useState('1');
+  const [auctionType, setAuctionType] = useState<'first-price' | 'vickrey'>('first-price');
   const [reserveSol, setReserveSol] = useState('');
   const [deadline, setDeadline] = useState('');
 
@@ -43,13 +41,10 @@ export default function CreateAuctionPage() {
     e.preventDefault();
     if (!publicKey) { setVisible(true); return; }
     if (!itemMintInput || !deadline || itemMintInvalid) return;
-    if (uniformComingSoon && auctionType === 'uniform') return;
-
     const deadlineUnix = Math.floor(new Date(deadline).getTime() / 1000);
     const result = await create({
       itemMint: itemMintInput,
       auctionType,
-      units: auctionType === 'uniform' ? parseInt(units) : 1,
       reserveSol: reserveSol ? parseFloat(reserveSol) : undefined,
       deadlineUnixSeconds: deadlineUnix,
       title: title.trim() || undefined,
@@ -135,7 +130,7 @@ export default function CreateAuctionPage() {
                 {/* Section: Mechanism */}
                 <FormSection number="02" title="Mechanism">
                   <Field label="Auction type" required>
-                    <div className="grid sm:grid-cols-3 gap-2">
+                    <div className="grid sm:grid-cols-2 gap-2">
                       <TypeOption
                         title="First-Price"
                         desc="Highest bid wins. Pays own bid."
@@ -148,24 +143,10 @@ export default function CreateAuctionPage() {
                         selected={auctionType === 'vickrey'}
                         onSelect={() => setAuctionType('vickrey')}
                       />
-                      <TypeOption
-                        title="Uniform"
-                        desc="K winners pay clearing price."
-                        selected={auctionType === 'uniform'}
-                        onSelect={() => setAuctionType('uniform')}
-                        disabled={uniformComingSoon}
-                        badgeText="Coming soon"
-                      />
                     </div>
-                    {uniformComingSoon && (
-                      <p className="mt-2 text-[11px] text-text-muted">
-                        Uniform-Price auctions are visible in the UI, but circuit deployment is still in progress.
-                        First-Price and Vickrey are fully live.
-                      </p>
-                    )}
                   </Field>
 
-                  <div className="grid sm:grid-cols-2 gap-4">
+                  <div className="grid sm:grid-cols-1 gap-4">
                     <Field
                       label="Reserve price"
                       hint="Minimum to win. Below = no_winner."
@@ -184,17 +165,6 @@ export default function CreateAuctionPage() {
                         </span>
                       </div>
                     </Field>
-
-                    {auctionType === 'uniform' && (
-                      <Field label="Units" hint="Number of items to sell.">
-                        <Input
-                          type="number"
-                          placeholder="1"
-                          value={units}
-                          onChange={e => setUnits(e.target.value)}
-                        />
-                      </Field>
-                    )}
                   </div>
                 </FormSection>
 
@@ -237,16 +207,14 @@ export default function CreateAuctionPage() {
                   <Button
                     type="submit"
                     size="md"
-                    disabled={submitting || !deadline || !itemMintInput || itemMintInvalid || (uniformComingSoon && auctionType === 'uniform')}
+                    disabled={submitting || !deadline || !itemMintInput || itemMintInvalid}
                   >
                     <Lock size={13} />
                     {submitting
                       ? 'Signing…'
                       : !publicKey
                         ? 'Connect wallet to launch'
-                        : uniformComingSoon && auctionType === 'uniform'
-                          ? 'Uniform-Price coming soon'
-                          : 'Launch auction'}
+                        : 'Launch auction'}
                     <ArrowRight size={12} />
                   </Button>
                 </div>

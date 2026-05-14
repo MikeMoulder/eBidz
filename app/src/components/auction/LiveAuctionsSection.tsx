@@ -17,17 +17,10 @@ export function liveToUIAuction(a: LiveAuction): Auction {
   const auctionType: Auction['auctionType'] =
     typeKey === 'sealedBidFirstPrice'
       ? 'first-price'
-      : typeKey === 'vickrey'
-        ? 'vickrey'
-        : 'uniform';
+      : 'vickrey';
 
   // AuctionStatus is now normalized to a string in useAuctions
   const status = a.status as Auction['status'];
-
-  const units =
-    typeKey === 'uniformPrice' && (a.auctionType as any).uniformPrice?.units
-      ? Number((a.auctionType as any).uniformPrice.units)
-      : 1;
 
   return {
     id: a.publicKey,
@@ -37,7 +30,7 @@ export function liveToUIAuction(a: LiveAuction): Auction {
     creator: a.creator,
     auctionType,
     reservePrice: a.reserveSol != null ? Math.round(a.reserveSol * 1e9) : undefined,
-    units,
+    units: 1,
     bidCount: a.bidCountN,
     deadline: a.deadlineMs,
     status,

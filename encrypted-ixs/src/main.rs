@@ -1,5 +1,4 @@
-mod first_price_winner;
+mod first_price_winner_v13;
 mod vickrey_winner;
-mod uniform_price_winner;
 
 fn main() {}

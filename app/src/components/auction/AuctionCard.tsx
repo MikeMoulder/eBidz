@@ -10,7 +10,6 @@ import { formatSol, shortAddress } from '@/lib/format';
 const typeTone: Record<AuctionType, 'violet' | 'lavender' | 'green'> = {
   'first-price': 'violet',
   vickrey: 'lavender',
-  uniform: 'green',
 };
 
 export function AuctionCard({ auction, index }: { auction: Auction; index?: number }) {

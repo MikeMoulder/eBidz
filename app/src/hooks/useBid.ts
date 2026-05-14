@@ -34,6 +34,8 @@ export interface UseBidReturn {
   reset: () => void;
 }
 
+const TX_FEE_BUFFER_LAMPORTS = 5_000_000;
+
 export function useBid(): UseBidReturn {
   const client = useProgramClient();
   const [status, setStatus] = useState<BidStatus>('idle');
@@ -54,9 +56,24 @@ export function useBid(): UseBidReturn {
         return;
       }
 
-      const { program, provider, wallet } = client;
+      const { program, provider, wallet, connection } = client;
 
       try {
+        const depositLamports = Math.round(depositSol * WEB3_LAMPORTS);
+        if (!Number.isFinite(depositLamports) || depositLamports <= 0) {
+          throw new Error('Invalid deposit amount');
+        }
+
+        const walletBalance = await connection.getBalance(wallet.publicKey!, 'processed');
+        const requiredLamports = depositLamports + TX_FEE_BUFFER_LAMPORTS;
+        if (walletBalance < requiredLamports) {
+          const haveSol = (walletBalance / WEB3_LAMPORTS).toFixed(4);
+          const needSol = (requiredLamports / WEB3_LAMPORTS).toFixed(4);
+          throw new Error(
+            `Insufficient SOL for bid deposit + fees. Have ${haveSol} SOL, need at least ${needSol} SOL.`,
+          );
+        }
+
         // ── Step 1: x25519 ephemeral keypair ─────────────────────────────
         setStatus('encrypting');
         const privateKey = x25519.utils.randomSecretKey();
@@ -104,7 +121,6 @@ export function useBid(): UseBidReturn {
         const [vaultKey] = vaultPda(auctionKey);
         const [bidsDataKey] = bidsDataPda(auctionKey);
 
-        const depositLamports = Math.round(depositSol * WEB3_LAMPORTS);
         const nonceU128 = deserializeLE128(nonce);
 
         const sig = await program.methods
@@ -128,7 +144,23 @@ export function useBid(): UseBidReturn {
         setStatus('sealed');
       } catch (e) {
         console.error('[useBid] error:', e);
-        setError(e instanceof Error ? e.message : 'Unknown error');
+        const logs = await tryGetLogs(e);
+        const lamportLine = logs?.find((line) => line.includes('Transfer: insufficient lamports'));
+
+        if (lamportLine) {
+          const m = /insufficient lamports\s+(\d+), need\s+(\d+)/i.exec(lamportLine);
+          if (m) {
+            const haveSol = (Number(m[1]) / WEB3_LAMPORTS).toFixed(4);
+            const needSol = (Number(m[2]) / WEB3_LAMPORTS).toFixed(4);
+            setError(
+              `Insufficient SOL to place bid. Wallet has ${haveSol} SOL, but this transaction needs ${needSol} SOL.`,
+            );
+          } else {
+            setError('Insufficient SOL to place bid (deposit transfer failed).');
+          }
+        } else {
+          setError(e instanceof Error ? e.message : 'Unknown error');
+        }
         setStatus('error');
       }
     },
@@ -145,4 +177,23 @@ function deserializeLE128(buf: Uint8Array): bigint {
     result |= BigInt(buf[i]) << BigInt(8 * i);
   }
   return result;
+}
+
+async function tryGetLogs(e: unknown): Promise<string[] | null> {
+  if (!e || typeof e !== 'object') return null;
+
+  const maybeErr = e as {
+    getLogs?: () => Promise<string[]>;
+    logs?: string[];
+  };
+
+  if (typeof maybeErr.getLogs === 'function') {
+    try {
+      return await maybeErr.getLogs();
+    } catch {
+      return maybeErr.logs ?? null;
+    }
+  }
+
+  return maybeErr.logs ?? null;
 }

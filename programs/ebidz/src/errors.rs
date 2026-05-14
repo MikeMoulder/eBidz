@@ -31,4 +31,7 @@ pub enum EbidzError {
 
     #[msg("MPC timeout has not elapsed yet")]
     MpcTimeoutNotElapsed,
+
+    #[msg("MPC computation failed")]
+    MpcCallbackFailed,
 }

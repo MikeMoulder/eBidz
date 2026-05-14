@@ -3,67 +3,61 @@ use arcium_anchor::prelude::*;
 use arcium_client::idl::arcium::types::{CircuitSource, OffChainCircuitSource};
 
 mod errors;
-mod state;
 mod instructions;
+mod state;
 
-use state::{Auction, AuctionStatus, AuctionType};
 use errors::EbidzError;
-use instructions::{
-    MPC_TIMEOUT_SECONDS,
-};
+use state::{Auction, AuctionStatus, AuctionType, Bid, BidsData};
 
 declare_id!("3s8PVCbX5eTiBDnn2oW9EdsH82V3JE2ua5aEDwBz9uBv");
 
-/// Placeholder for the Arcium-generated output type for our circuits.
-/// When the project is built with `arcium build`, the #[arcium_callback] macro
-/// generates the concrete types from the .idarc file. We declare them manually
-/// here for compilation without the full toolchain.
-#[derive(AnchorSerialize, AnchorDeserialize)]
-pub struct WinnerOutput {
-    /// Shared output encryption key.
-    pub encryption_key: [u8; 32],
-    /// Nonce for the caller to decrypt with their shared secret.
-    pub nonce: u128,
-    /// [winner_pubkey_ciphertext, clearing_price_ciphertext]
-    pub ciphertexts: [[u8; 32]; 2],
+const COMP_DEF_OFFSET_FP_WINNER: u32 = 3393523458;
+
+#[error_code]
+pub enum ErrorCode {
+    #[msg("Arcium cluster is not set")]
+    ClusterNotSet,
 }
 
-impl HasSize for WinnerOutput {
-    const SIZE: usize = 32 + 16 + 2 * 32;
+#[derive(Accounts)]
+pub struct InitSignPda<'info> {
+    #[account(mut)]
+    pub payer: Signer<'info>,
+
+    #[account(
+        init,
+        payer = payer,
+        space = 8 + 1,
+        seeds = [SIGN_PDA_SEED],
+        bump,
+    )]
+    pub sign_pda_account: Account<'info, ArciumSignerAccount>,
+
+    pub system_program: Program<'info, System>,
 }
 
-#[account]
-pub struct ArciumSignerAccount {
-    pub bump: u8,
-}
+#[init_computation_definition_accounts("first_price_winner_v13", payer)]
+#[derive(Accounts)]
+pub struct InitFirstPriceCompDef<'info> {
+    #[account(mut)]
+    pub payer: Signer<'info>,
 
-/// Packed bid ciphertexts for the Arcium circuit.
-/// Layout (after 8-byte discriminator):
-///   [0..32)   shared X25519 pubkey (from most-recent bidder)
-///   [32..64)  nonce padded to 32 bytes (from most-recent bidder)
-///   [64..8256) 256 × 32-byte encrypted amounts (zero-padded)
-///
-/// zero_copy avoids borsh deserialization entirely (bytemuck cast),
-/// preventing a BPF stack-frame overflow from the 8192-byte ciphertexts array.
-#[account(zero_copy)]
-pub struct BidsData {
-    pub shared_pubkey: [u8; 32],
-    pub nonce_padded: [u8; 32],
-    /// Flat byte array: 256 × 32-byte ciphertexts packed end-to-end.
-    /// Slot N occupies bytes [N*32 .. (N+1)*32).
-    pub ciphertexts: [u8; 8192],
-}
+    #[account(mut, address = derive_mxe_pda!())]
+    pub mxe_account: Account<'info, MXEAccount>,
 
-impl BidsData {
-    /// 8 discriminator + 32 pubkey + 32 nonce + 256×32 ciphertexts = 8264
-    pub const LEN: usize = 8 + 32 + 32 + 256 * 32;
-}
+    #[account(mut)]
+    /// CHECK: Validated in Arcium CPI.
+    pub comp_def_account: UncheckedAccount<'info>,
 
-fn validate_callback_ixs(
-    _instructions_sysvar: &UncheckedAccount<'_>,
-    _arcium_program: &Pubkey,
-) -> Result<()> {
-    Ok(())
+    #[account(mut)]
+    /// CHECK: Validated in Arcium CPI.
+    pub address_lookup_table: UncheckedAccount<'info>,
+
+    /// CHECK: Must be LUT program.
+    pub lut_program: UncheckedAccount<'info>,
+
+    pub system_program: Program<'info, System>,
+    pub arcium_program: Program<'info, Arcium>,
 }
 
 #[derive(Accounts)]
@@ -84,21 +78,23 @@ pub struct CreateAuction<'info> {
     #[account(
         init,
         payer = creator,
-        space = BidsData::LEN,
+        space = 8 + BidsData::SIZE,
         seeds = [b"bids_data", auction.key().as_ref()],
         bump,
     )]
     pub bids_data: AccountLoader<'info, BidsData>,
 
-    /// CHECK: validated by token program during item transfer
+    /// CHECK: Validated by the item-transfer flow.
     pub item_mint: UncheckedAccount<'info>,
 
     #[account(
-        mut,
+        init_if_needed,
+        payer = creator,
+        space = 0,
         seeds = [b"vault", auction.key().as_ref()],
         bump,
     )]
-    /// CHECK: PDA vault for SOL escrow. Not initialized here; receives lamports on first bid.
+    /// CHECK: System-owned PDA vault.
     pub vault: UncheckedAccount<'info>,
 
     pub system_program: Program<'info, System>,
@@ -120,18 +116,14 @@ pub struct SubmitBid<'info> {
     #[account(
         init,
         payer = bidder,
-        space = crate::state::Bid::LEN,
+        space = Bid::LEN,
         seeds = [b"bid", auction.key().as_ref(), bidder.key().as_ref()],
         bump,
     )]
-    pub bid: Account<'info, crate::state::Bid>,
+    pub bid: Account<'info, Bid>,
 
-    /// Created lazily on first bid so auctions created before this account
-    /// type was added can still receive bids.
     #[account(
-        init_if_needed,
-        payer = bidder,
-        space = BidsData::LEN,
+        mut,
         seeds = [b"bids_data", auction.key().as_ref()],
         bump,
     )]
@@ -142,15 +134,17 @@ pub struct SubmitBid<'info> {
         seeds = [b"vault", auction.key().as_ref()],
         bump,
     )]
-    pub vault: SystemAccount<'info>,
+    /// CHECK: PDA vault (program-owned in current deployment flow).
+    pub vault: UncheckedAccount<'info>,
 
     pub system_program: Program<'info, System>,
 }
 
+#[queue_computation_accounts("first_price_winner_v13", closer)]
 #[derive(Accounts)]
 pub struct CloseAuction<'info> {
     #[account(mut)]
-    pub payer: Signer<'info>,
+    pub closer: Signer<'info>,
 
     #[account(
         mut,
@@ -160,132 +154,73 @@ pub struct CloseAuction<'info> {
     )]
     pub auction: Account<'info, Auction>,
 
-    /// CHECK: bids_data PDA — only the account key is forwarded to Arcium
-    /// via ArgBuilder; no data is read/written by this instruction.
     #[account(
         mut,
         seeds = [b"bids_data", auction.key().as_ref()],
         bump,
     )]
-    pub bids_data: UncheckedAccount<'info>,
+    pub bids_data: AccountLoader<'info, BidsData>,
 
-    /// CHECK: Arcium MXE account for this program.
-    #[account(
-        seeds = [MXE_PDA_SEED, crate::ID.as_ref()],
-        bump,
-        seeds::program = ARCIUM_PROG_ID,
-    )]
-    pub mxe_account: UncheckedAccount<'info>,
+    #[account(address = derive_mxe_pda!())]
+    pub mxe_account: Box<Account<'info, MXEAccount>>,
 
-    #[account(mut)]
+    #[account(mut, seeds = [SIGN_PDA_SEED], bump = sign_pda_account.bump)]
     pub sign_pda_account: Account<'info, ArciumSignerAccount>,
 
-    /// CHECK: Arcium mempool.
     #[account(mut)]
+    /// CHECK: Arcium mempool PDA.
     pub mempool_account: UncheckedAccount<'info>,
 
-    /// CHECK: Arcium executing pool.
     #[account(mut)]
+    /// CHECK: Arcium execpool PDA.
     pub executing_pool: UncheckedAccount<'info>,
 
-    /// CHECK: Arcium computation account.
     #[account(mut)]
+    /// CHECK: Computation PDA created by Arcium queue.
     pub computation_account: UncheckedAccount<'info>,
 
-    /// CHECK: Arcium computation definition account.
-    pub comp_def_account: UncheckedAccount<'info>,
+    #[account(address = derive_comp_def_pda!(COMP_DEF_OFFSET_FP_WINNER))]
+    pub comp_def_account: Box<Account<'info, ComputationDefinitionAccount>>,
 
-    /// CHECK: Arcium cluster account.
-    #[account(mut)]
-    pub cluster_account: UncheckedAccount<'info>,
+    #[account(mut, address = derive_cluster_pda!(mxe_account, ErrorCode::ClusterNotSet))]
+    pub cluster_account: Box<Account<'info, Cluster>>,
 
-    /// CHECK: Arcium fee pool account.
-    #[account(mut)]
-    pub pool_account: UncheckedAccount<'info>,
+    #[account(mut, address = ARCIUM_FEE_POOL_ACCOUNT_ADDRESS)]
+    pub pool_account: Box<Account<'info, FeePool>>,
 
-    /// CHECK: Arcium clock account.
-    #[account(mut)]
-    pub clock_account: UncheckedAccount<'info>,
-
-    /// CHECK: Arcium program account.
-    pub arcium_program: UncheckedAccount<'info>,
+    #[account(mut, address = ARCIUM_CLOCK_ACCOUNT_ADDRESS)]
+    pub clock_account: Box<Account<'info, ClockAccount>>,
 
     pub system_program: Program<'info, System>,
+    pub arcium_program: Program<'info, Arcium>,
 }
 
-impl<'info> arcium_anchor::traits::QueueCompAccs<'info> for CloseAuction<'info> {
-    fn comp_def_offset(&self) -> u32 {
-        match self.auction.auction_type {
-            AuctionType::SealedBidFirstPrice => instructions::COMP_DEF_OFFSET_FIRST_PRICE,
-            AuctionType::Vickrey => instructions::COMP_DEF_OFFSET_VICKREY,
-            AuctionType::UniformPrice { .. } => instructions::COMP_DEF_OFFSET_UNIFORM,
-        }
-    }
-
-    fn queue_comp_accs(&self) -> arcium_client::idl::arcium::cpi::accounts::QueueComputation<'info> {
-        arcium_client::idl::arcium::cpi::accounts::QueueComputation {
-            signer: self.payer.to_account_info(),
-            sign_seed: self.sign_pda_account.to_account_info(),
-            comp: self.computation_account.to_account_info(),
-            mxe: self.mxe_account.to_account_info(),
-            mempool: self.mempool_account.to_account_info(),
-            executing_pool: self.executing_pool.to_account_info(),
-            comp_def_acc: self.comp_def_account.to_account_info(),
-            cluster: self.cluster_account.to_account_info(),
-            pool_account: self.pool_account.to_account_info(),
-            system_program: self.system_program.to_account_info(),
-            clock: self.clock_account.to_account_info(),
-        }
-    }
-
-    fn arcium_program(&self) -> AccountInfo<'info> {
-        self.arcium_program.to_account_info()
-    }
-
-    fn mxe_program(&self) -> Pubkey {
-        crate::ID
-    }
-
-    fn signer_pda_bump(&self) -> u8 {
-        self.sign_pda_account.bump
-    }
-}
-
+#[callback_accounts("first_price_winner_v13")]
 #[derive(Accounts)]
-pub struct SettleAuction<'info> {
-    // ── Arcium standard callback accounts [0..5] ───────────────────────────
-    // Must be in exactly this order to match the accounts list built by
-    // build_callback_ix: [arcium_program, comp_def, mxe, computation, cluster,
-    // instructions_sysvar, ...extra_accs]
+pub struct FirstPriceWinnerV13Callback<'info> {
+    pub arcium_program: Program<'info, Arcium>,
 
-    /// CHECK: Arcium program — callback account [0].
-    pub arcium_program: UncheckedAccount<'info>,
+    #[account(address = derive_comp_def_pda!(COMP_DEF_OFFSET_FP_WINNER))]
+    pub comp_def_account: Account<'info, ComputationDefinitionAccount>,
 
-    /// CHECK: Computation definition — callback account [1].
-    pub comp_def_account: UncheckedAccount<'info>,
+    #[account(address = derive_mxe_pda!())]
+    pub mxe_account: Account<'info, MXEAccount>,
 
-    /// CHECK: MXE account — callback account [2].
-    pub mxe_account: UncheckedAccount<'info>,
-
-    /// CHECK: Computation account — callback account [3].
+    #[account(mut)]
+    /// CHECK: Arcium computation account.
     pub computation_account: UncheckedAccount<'info>,
 
-    /// CHECK: Cluster account — callback account [4].
-    pub cluster_account: UncheckedAccount<'info>,
+    pub cluster_account: Account<'info, Cluster>,
 
-    /// CHECK: Instructions sysvar — callback account [5].
     #[account(address = anchor_lang::solana_program::sysvar::instructions::ID)]
-    pub instructions_sysvar: UncheckedAccount<'info>,
+    /// CHECK: Address checked by constraint.
+    pub instructions_sysvar: AccountInfo<'info>,
 
-    // ── User extra accounts [6+] ───────────────────────────────────────────
-    /// Auction to settle — passed as extra_acc in the callback ix.
-    #[account(
-        mut,
-        seeds = [b"auction", auction.creator.as_ref(), &auction.deadline.to_le_bytes()],
-        bump = auction.bump,
-        constraint = auction.status == AuctionStatus::Computing @ EbidzError::InvalidAuctionState,
-    )]
+    #[account(mut)]
     pub auction: Account<'info, Auction>,
+
+    #[account(seeds = [b"bids_data", auction.key().as_ref()], bump)]
+    pub bids_data: AccountLoader<'info, BidsData>,
 }
 
 #[derive(Accounts)]
@@ -307,126 +242,63 @@ pub struct ClaimRefund<'info> {
         constraint = bid.bidder == bidder.key(),
         constraint = !bid.refunded @ EbidzError::AlreadyRefunded,
     )]
-    pub bid: Account<'info, crate::state::Bid>,
+    pub bid: Account<'info, Bid>,
 
     #[account(
         mut,
         seeds = [b"vault", auction.key().as_ref()],
         bump,
     )]
-    pub vault: SystemAccount<'info>,
+    /// CHECK: PDA vault (program-owned in current deployment flow).
+    pub vault: UncheckedAccount<'info>,
 
     pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
 pub struct CancelAuction<'info> {
-    #[account(mut)]
-    pub creator: Signer<'info>,
-
     #[account(
         mut,
-        seeds = [b"auction", creator.key().as_ref(), &auction.deadline.to_le_bytes()],
+        seeds = [b"auction", auction.creator.as_ref(), &auction.deadline.to_le_bytes()],
         bump = auction.bump,
-        constraint = auction.creator == creator.key() @ EbidzError::Unauthorized,
-        constraint = auction.status == AuctionStatus::Active @ EbidzError::InvalidAuctionState,
-        constraint = auction.bid_count == 0 @ EbidzError::AuctionHasBids,
     )]
     pub auction: Account<'info, Auction>,
 }
 
 #[derive(Accounts)]
 pub struct ForceCancel<'info> {
+    #[account(mut)]
     pub caller: Signer<'info>,
 
     #[account(
         mut,
         seeds = [b"auction", auction.creator.as_ref(), &auction.deadline.to_le_bytes()],
         bump = auction.bump,
-        constraint = auction.status == AuctionStatus::Computing @ EbidzError::InvalidAuctionState,
     )]
     pub auction: Account<'info, Auction>,
 }
 
-/// One-time setup: creates the ArciumSignerAccount PDA owned by this program.
-/// Must be called before the first closeAuction invocation.
-#[derive(Accounts)]
-pub struct InitSignPda<'info> {
-    #[account(mut)]
-    pub payer: Signer<'info>,
-
-    #[account(
-        init,
-        payer = payer,
-        space = 8 + 1,
-        seeds = [b"ArciumSignerAccount"],
-        bump,
-    )]
-    pub sign_pda_account: Account<'info, ArciumSignerAccount>,
-
-    pub system_program: Program<'info, System>,
-}
-
-#[program]
+#[arcium_program]
 pub mod ebidz {
     use super::*;
 
-    // ── One-time setup ────────────────────────────────────────────────────
-
-    /// Initialize the Arcium signer PDA owned by this program.
-    /// Must be called once before any closeAuction call.
     pub fn init_sign_pda(ctx: Context<InitSignPda>) -> Result<()> {
         ctx.accounts.sign_pda_account.bump = ctx.bumps.sign_pda_account;
         Ok(())
     }
 
-    // ── Computation-definition initializers (called once after deploy) ─────
-
-    /// Register the first-price auction circuit with Arcium.
-    /// `circuit_url`  — Supabase (or any HTTPS) URL of the compiled .arcis file.
-    /// `circuit_hash` — SHA-256 of the .arcis bytes (32 bytes).
     pub fn init_first_price_comp_def(
         ctx: Context<InitFirstPriceCompDef>,
         circuit_url: String,
         circuit_hash: [u8; 32],
     ) -> Result<()> {
-        let source = CircuitSource::OffChain(OffChainCircuitSource {
+        let circuit_source = CircuitSource::OffChain(OffChainCircuitSource {
             source: circuit_url,
             hash: circuit_hash,
         });
-        init_comp_def(ctx.accounts, Some(source), None)
-            .map_err(|_| error!(EbidzError::InvalidAuctionState))
+        init_comp_def(ctx.accounts, Some(circuit_source), None)?;
+        Ok(())
     }
-
-    /// Register the Vickrey auction circuit with Arcium.
-    pub fn init_vickrey_comp_def(
-        ctx: Context<InitVickreyCompDef>,
-        circuit_url: String,
-        circuit_hash: [u8; 32],
-    ) -> Result<()> {
-        let source = CircuitSource::OffChain(OffChainCircuitSource {
-            source: circuit_url,
-            hash: circuit_hash,
-        });
-        init_comp_def(ctx.accounts, Some(source), None)
-            .map_err(|_| error!(EbidzError::InvalidAuctionState))
-    }
-
-    /// Register the uniform-price auction circuit with Arcium.
-    pub fn init_uniform_comp_def(
-        ctx: Context<InitUniformCompDef>,
-        circuit_url: String,
-        circuit_hash: [u8; 32],
-    ) -> Result<()> {
-        let source = CircuitSource::OffChain(OffChainCircuitSource {
-            source: circuit_url,
-            hash: circuit_hash,
-        });
-        init_comp_def(ctx.accounts, Some(source), None)
-            .map_err(|_| error!(EbidzError::InvalidAuctionState))
-    }
-
-    // ── Core instructions ─────────────────────────────────────────────────
 
     pub fn create_auction(
         ctx: Context<CreateAuction>,
@@ -435,7 +307,13 @@ pub mod ebidz {
         auction_type: AuctionType,
         reserve_price: Option<u64>,
     ) -> Result<()> {
-        crate::instructions::create_auction(ctx, deadline, _auction_type_tag, auction_type, reserve_price)
+        instructions::create_auction(
+            ctx,
+            deadline,
+            _auction_type_tag,
+            auction_type,
+            reserve_price,
+        )
     }
 
     pub fn submit_bid(
@@ -445,664 +323,42 @@ pub mod ebidz {
         nonce: u128,
         deposit: u64,
     ) -> Result<()> {
-        crate::instructions::submit_bid(ctx, encrypted_amount, pub_key, nonce, deposit)
+        instructions::submit_bid(ctx, encrypted_amount, pub_key, nonce, deposit)
     }
 
-    /// Permissionless — callable by anyone after the deadline.
-    /// Queues an Arcium MPC computation for winner determination.
-    pub fn close_auction(
-        ctx: Context<CloseAuction>,
-        computation_offset: u64,
-    ) -> Result<()> {
-        let clock = Clock::get()?;
-        let deadline = ctx.accounts.auction.deadline;
-
-        require!(
-            clock.unix_timestamp >= deadline,
-            EbidzError::DeadlineNotPassed
-        );
-
-        let auction_type = ctx.accounts.auction.auction_type.clone();
-        let reserve = ctx.accounts.auction.reserve_price.unwrap_or(0);
-        let n_bids = ctx.accounts.auction.bid_count;
-
-        // Build args for the MPC circuit.
-        // input[0]: Enc<Shared, [BidInput; 256]> — passed as an Account reference
-        //   covering 258 params (pubkey + nonce_padded + 256 ciphertexts × 32 bytes each).
-        // input[1]: n_bids  (plaintext u64)
-        // input[2]: reserve (plaintext u64)
-        // For uniform-price circuits add input[3]: units (plaintext u64)
-        let bids_data_key = ctx.accounts.bids_data.key();
-        let base_args = ArgBuilder::new()
-            .account(bids_data_key, 8, (258 * 32) as u32);
-
-        let args = match &auction_type {
-            AuctionType::UniformPrice { units } => {
-                let u = *units;
-                base_args
-                    .plaintext_u64(n_bids)
-                    .plaintext_u64(reserve)
-                    .plaintext_u64(u)
-                    .build()
-            }
-            _ => base_args
-                .plaintext_u64(n_bids)
-                .plaintext_u64(reserve)
-                .build(),
-        };
-
-        // The auction account must be in extra_accs so Arcium includes it in
-        // the callback instruction it sends to us. Without this, the callback
-        // CPI would be missing the auction account and fail silently.
-        let auction_extra_acc = [arcium_client::idl::arcium::types::CallbackAccount {
-            pubkey: ctx.accounts.auction.key(),
-            is_writable: true,
-        }];
-
-        let callback_ix = match &auction_type {
-            AuctionType::SealedBidFirstPrice => {
-                compute_first_price_callback_ix(
-                    computation_offset,
-                    ctx.accounts.comp_def_account.key(),
-                    ctx.accounts.mxe_account.key(),
-                    ctx.accounts.computation_account.key(),
-                    ctx.accounts.cluster_account.key(),
-                    &auction_extra_acc,
-                )?
-            }
-            AuctionType::Vickrey => {
-                compute_vickrey_callback_ix(
-                    computation_offset,
-                    ctx.accounts.comp_def_account.key(),
-                    ctx.accounts.mxe_account.key(),
-                    ctx.accounts.computation_account.key(),
-                    ctx.accounts.cluster_account.key(),
-                    &auction_extra_acc,
-                )?
-            }
-            AuctionType::UniformPrice { units } => {
-                let u = *units;
-                compute_uniform_callback_ix(
-                    computation_offset,
-                    ctx.accounts.comp_def_account.key(),
-                    ctx.accounts.mxe_account.key(),
-                    ctx.accounts.computation_account.key(),
-                    ctx.accounts.cluster_account.key(),
-                    u,
-                    &auction_extra_acc,
-                )?
-            }
-        };
-
-        queue_computation(
-            ctx.accounts,
-            computation_offset,
-            args,
-            vec![callback_ix],
-            1,
-            0, // priority fee
-        )
-        .map_err(|_| error!(EbidzError::InvalidAuctionState))?;
-
-        let auction = &mut ctx.accounts.auction;
-        auction.arcium_job_id = Some(computation_offset);
-        auction.status = AuctionStatus::Computing;
-        Ok(())
+    pub fn close_auction(ctx: Context<CloseAuction>, computation_offset: u64) -> Result<()> {
+        instructions::close_auction(ctx, computation_offset)
     }
 
-    /// Called by the Arcium cluster with the decrypted winner + price.
-    #[arcium_callback(encrypted_ix = "first_price_winner", auto_serialize = false)]
-    pub fn first_price_winner_callback(
-        ctx: Context<SettleAuction>,
-        output: SignedComputationOutputs<WinnerOutput>,
+    #[arcium_callback(encrypted_ix = "first_price_winner_v13")]
+    pub fn first_price_winner_v13_callback(
+        ctx: Context<FirstPriceWinnerV13Callback>,
+        output: SignedComputationOutputs<FirstPriceWinnerV13Output>,
     ) -> Result<()> {
-        settle_from_output(ctx, output)
-    }
-
-    #[arcium_callback(encrypted_ix = "vickrey_winner", auto_serialize = false)]
-    pub fn vickrey_winner_callback(
-        ctx: Context<SettleAuction>,
-        output: SignedComputationOutputs<WinnerOutput>,
-    ) -> Result<()> {
-        settle_from_output(ctx, output)
-    }
-
-    #[arcium_callback(encrypted_ix = "uniform_price_winner", auto_serialize = false)]
-    pub fn uniform_price_winner_callback(
-        ctx: Context<SettleAuction>,
-        output: SignedComputationOutputs<WinnerOutput>,
-    ) -> Result<()> {
-        settle_from_output(ctx, output)
+        instructions::first_price_winner_callback(ctx, output)
     }
 
     pub fn claim_refund(ctx: Context<ClaimRefund>) -> Result<()> {
-        let auction = &ctx.accounts.auction;
-        let bid = &mut ctx.accounts.bid;
-
-        // Winner does NOT get a refund — their deposit is the payment.
-        if auction.status == AuctionStatus::Settled {
-            if let Some(winner) = auction.winner {
-                require!(bid.bidder != winner, EbidzError::RefundNotAvailable);
-            }
-        }
-
-        let deposit = bid.deposit;
-        bid.refunded = true;
-
-        // Transfer deposit from vault back to bidder.
-        let auction_key = auction.key();
-        let seeds = &[b"vault", auction_key.as_ref(), &[ctx.bumps.vault]];
-        let signer = &[&seeds[..]];
-
-        anchor_lang::system_program::transfer(
-            CpiContext::new_with_signer(
-                ctx.accounts.system_program.to_account_info(),
-                anchor_lang::system_program::Transfer {
-                    from: ctx.accounts.vault.to_account_info(),
-                    to: ctx.accounts.bidder.to_account_info(),
-                },
-                signer,
-            ),
-            deposit,
-        )?;
-
-        emit!(RefundClaimed {
-            auction: ctx.accounts.auction.key(),
-            bidder: ctx.accounts.bidder.key(),
-            amount: deposit,
-        });
-        Ok(())
+        instructions::claim_refund(ctx)
     }
 
-    /// Cancel an auction with zero bids.
     pub fn cancel_auction(ctx: Context<CancelAuction>) -> Result<()> {
-        ctx.accounts.auction.status = AuctionStatus::Cancelled;
-        emit!(AuctionCancelled {
-            auction: ctx.accounts.auction.key(),
-        });
-        Ok(())
+        instructions::cancel_auction(ctx)
     }
 
-    /// Permissionless post-settlement reveal.
-    /// Anyone who decrypted the AuctionSettled event ciphertexts submits the
-    /// plaintext winner pubkey and clearing price here.
-    pub fn reveal_winner(ctx: Context<RevealWinner>, winner: Pubkey, clearing_price: u64) -> Result<()> {
-        let auction = &mut ctx.accounts.auction;
-        auction.winner = Some(winner);
-        auction.clearing_price = Some(clearing_price);
-        Ok(())
-    }
-
-    /// Liveness fallback — permissionlessly cancel if MPC hasn't responded.
     pub fn force_cancel(ctx: Context<ForceCancel>) -> Result<()> {
-        let auction = &mut ctx.accounts.auction;
-        let clock = Clock::get()?;
-        require!(
-            clock.unix_timestamp >= auction.deadline + MPC_TIMEOUT_SECONDS,
-            EbidzError::MpcTimeoutNotElapsed
-        );
-        auction.status = AuctionStatus::Cancelled;
-        emit!(AuctionForceCancelled {
-            auction: auction.key(),
-        });
-        Ok(())
+        instructions::force_cancel(ctx)
     }
 }
-
-// ─── Helper: settle from MPC output ─────────────────────────────────────────
-
-fn settle_from_output(
-    ctx: Context<SettleAuction>,
-    output: SignedComputationOutputs<WinnerOutput>,
-) -> Result<()> {
-    let o = match output {
-        SignedComputationOutputs::Success(bytes, _) => {
-            WinnerOutput::try_from_slice(&bytes)
-                .map_err(|_| error!(EbidzError::InvalidAuctionState))?
-        }
-        SignedComputationOutputs::Failure(_) => {
-            // MPC circuit aborted (e.g. invalid ciphertext MAC). Cancel the
-            // auction so bidders can claim refunds and Arcium stops retrying.
-            let auction = &mut ctx.accounts.auction;
-            auction.status = AuctionStatus::Cancelled;
-            emit!(AuctionCancelled { auction: auction.key() });
-            return Ok(());
-        }
-        SignedComputationOutputs::MarkerForIdlBuildDoNotUseThis(_) => {
-            return Err(error!(EbidzError::InvalidAuctionState));
-        }
-    };
-
-    let auction = &mut ctx.accounts.auction;
-
-    // Sentinel: all-zero winner ciphertext means no winner (reserve not met).
-    if o.ciphertexts[0] == [0u8; 32] {
-        auction.status = AuctionStatus::Cancelled;
-        emit!(AuctionCancelled { auction: auction.key() });
-        return Ok(());
-    }
-
-    // In a production build the circuit would output plaintext winner pubkey
-    // and clearing price after decryption inside the MPC. Here we store the
-    // raw ciphertexts; the frontend decrypts them with the shared secret.
-    // winner_ciphertext[0..32] encodes the 32-byte winner pubkey (encrypted).
-    // For demo/devnet we set a placeholder — full circuit outputs cleared pubkey.
-    auction.status = AuctionStatus::Settled;
-
-    emit!(AuctionSettled {
-        auction: auction.key(),
-        winner_ciphertext: o.ciphertexts[0],
-        price_ciphertext: o.ciphertexts[1],
-        nonce: o.nonce,
-        encryption_key: o.encryption_key,
-    });
-    Ok(())
-}
-
-// ─── reveal_winner accounts ─────────────────────────────────────────────────
-// Permissionless: the encrypted result is public in the AuctionSettled event.
-// Anyone who decrypts it (using the emitted encryption_key + nonce + RescueCipher)
-// can submit the plaintext winner + clearing_price.
-#[derive(Accounts)]
-pub struct RevealWinner<'info> {
-    pub caller: Signer<'info>,
-
-    #[account(
-        mut,
-        seeds = [b"auction", auction.creator.as_ref(), &auction.deadline.to_le_bytes()],
-        bump = auction.bump,
-        constraint = auction.status == AuctionStatus::Settled @ EbidzError::InvalidAuctionState,
-        constraint = auction.winner.is_none() @ EbidzError::InvalidAuctionState,
-    )]
-    pub auction: Account<'info, Auction>,
-}
-
-fn compute_first_price_callback_ix(
-    computation_offset: u64,
-    comp_def_pubkey: Pubkey,
-    mxe_pubkey: Pubkey,
-    computation_pubkey: Pubkey,
-    cluster_pubkey: Pubkey,
-    extra_accs: &[arcium_client::idl::arcium::types::CallbackAccount],
-) -> Result<arcium_client::idl::arcium::types::CallbackInstruction> {
-    build_callback_ix(
-        computation_offset,
-        comp_def_pubkey,
-        mxe_pubkey,
-        computation_pubkey,
-        cluster_pubkey,
-        crate::instruction::FirstPriceWinnerCallback::DISCRIMINATOR.to_vec(),
-        extra_accs,
-    )
-}
-
-fn compute_vickrey_callback_ix(
-    computation_offset: u64,
-    comp_def_pubkey: Pubkey,
-    mxe_pubkey: Pubkey,
-    computation_pubkey: Pubkey,
-    cluster_pubkey: Pubkey,
-    extra_accs: &[arcium_client::idl::arcium::types::CallbackAccount],
-) -> Result<arcium_client::idl::arcium::types::CallbackInstruction> {
-    build_callback_ix(
-        computation_offset,
-        comp_def_pubkey,
-        mxe_pubkey,
-        computation_pubkey,
-        cluster_pubkey,
-        crate::instruction::VickreyWinnerCallback::DISCRIMINATOR.to_vec(),
-        extra_accs,
-    )
-}
-
-fn compute_uniform_callback_ix(
-    computation_offset: u64,
-    comp_def_pubkey: Pubkey,
-    mxe_pubkey: Pubkey,
-    computation_pubkey: Pubkey,
-    cluster_pubkey: Pubkey,
-    _units: u64,
-    extra_accs: &[arcium_client::idl::arcium::types::CallbackAccount],
-) -> Result<arcium_client::idl::arcium::types::CallbackInstruction> {
-    build_callback_ix(
-        computation_offset,
-        comp_def_pubkey,
-        mxe_pubkey,
-        computation_pubkey,
-        cluster_pubkey,
-        crate::instruction::UniformPriceWinnerCallback::DISCRIMINATOR.to_vec(),
-        extra_accs,
-    )
-}
-
-fn build_callback_ix(
-    _computation_offset: u64,
-    comp_def_pubkey: Pubkey,
-    mxe_pubkey: Pubkey,
-    computation_pubkey: Pubkey,
-    cluster_pubkey: Pubkey,
-    discriminator: Vec<u8>,
-    extra_accs: &[arcium_client::idl::arcium::types::CallbackAccount],
-) -> Result<arcium_client::idl::arcium::types::CallbackInstruction> {
-    let mut accounts = vec![
-        arcium_client::idl::arcium::types::CallbackAccount {
-            pubkey: arcium_client::ARCIUM_PROGRAM_ID,
-            is_writable: false,
-        },
-        arcium_client::idl::arcium::types::CallbackAccount {
-            pubkey: comp_def_pubkey,
-            is_writable: false,
-        },
-        arcium_client::idl::arcium::types::CallbackAccount {
-            pubkey: mxe_pubkey,
-            is_writable: false,
-        },
-        arcium_client::idl::arcium::types::CallbackAccount {
-            pubkey: computation_pubkey,
-            is_writable: false,
-        },
-        arcium_client::idl::arcium::types::CallbackAccount {
-            pubkey: cluster_pubkey,
-            is_writable: false,
-        },
-        arcium_client::idl::arcium::types::CallbackAccount {
-            pubkey: anchor_lang::solana_program::sysvar::instructions::ID,
-            is_writable: false,
-        },
-    ];
-    accounts.extend_from_slice(extra_accs);
-
-    Ok(arcium_client::idl::arcium::types::CallbackInstruction {
-        program_id: crate::ID,
-        discriminator,
-        accounts,
-    })
-}
-
-// ─── Comp-def account structs (generated by arcium toolchain) ────────────────
-
-#[derive(Accounts)]
-pub struct InitFirstPriceCompDef<'info> {
-    #[account(mut)]
-    pub payer: Signer<'info>,
-
-    /// CHECK: Arcium MXE account
-    pub mxe_account: UncheckedAccount<'info>,
-
-    /// CHECK: initialized by Arcium program CPI
-    #[account(mut)]
-    pub comp_def_account: UncheckedAccount<'info>,
-
-    /// CHECK: initialized by Arcium program CPI
-    #[account(mut)]
-    pub address_lookup_table: UncheckedAccount<'info>,
-
-    /// CHECK: validated by Arcium CPI
-    pub lut_program: UncheckedAccount<'info>,
-
-    pub system_program: Program<'info, System>,
-    /// CHECK: Arcium program account
-    pub arcium_program: UncheckedAccount<'info>,
-}
-
-#[derive(Accounts)]
-pub struct InitVickreyCompDef<'info> {
-    #[account(mut)]
-    pub payer: Signer<'info>,
-
-    /// CHECK: Arcium MXE account
-    pub mxe_account: UncheckedAccount<'info>,
-
-    /// CHECK: initialized by Arcium program CPI
-    #[account(mut)]
-    pub comp_def_account: UncheckedAccount<'info>,
-
-    /// CHECK: initialized by Arcium program CPI
-    #[account(mut)]
-    pub address_lookup_table: UncheckedAccount<'info>,
-
-    /// CHECK: validated by Arcium CPI
-    pub lut_program: UncheckedAccount<'info>,
-
-    pub system_program: Program<'info, System>,
-    /// CHECK: Arcium program account
-    pub arcium_program: UncheckedAccount<'info>,
-}
-
-#[derive(Accounts)]
-pub struct InitUniformCompDef<'info> {
-    #[account(mut)]
-    pub payer: Signer<'info>,
-
-    /// CHECK: Arcium MXE account
-    pub mxe_account: UncheckedAccount<'info>,
-
-    /// CHECK: initialized by Arcium program CPI
-    #[account(mut)]
-    pub comp_def_account: UncheckedAccount<'info>,
-
-    /// CHECK: initialized by Arcium program CPI
-    #[account(mut)]
-    pub address_lookup_table: UncheckedAccount<'info>,
-
-    /// CHECK: validated by Arcium CPI
-    pub lut_program: UncheckedAccount<'info>,
-
-    pub system_program: Program<'info, System>,
-    /// CHECK: Arcium program account
-    pub arcium_program: UncheckedAccount<'info>,
-}
-
-fn bids_input_params(include_units: bool) -> Vec<::arcium_client::idl::arcium::types::Parameter> {
-    let mut params = Vec::with_capacity(if include_units { 261 } else { 260 });
-    params.push(::arcium_client::idl::arcium::types::Parameter::ArcisX25519Pubkey);
-    params.push(::arcium_client::idl::arcium::types::Parameter::PlaintextU128);
-    params.extend(std::iter::repeat(::arcium_client::idl::arcium::types::Parameter::Ciphertext).take(256));
-    params.push(::arcium_client::idl::arcium::types::Parameter::PlaintextU64); // n_bids
-    params.push(::arcium_client::idl::arcium::types::Parameter::PlaintextU64); // reserve
-    if include_units {
-        params.push(::arcium_client::idl::arcium::types::Parameter::PlaintextU64); // units
-    }
-    params
-}
-
-fn winner_outputs(ciphertext_count: usize) -> Vec<::arcium_client::idl::arcium::types::Output> {
-    let mut outputs = Vec::with_capacity(2 + ciphertext_count);
-    outputs.push(::arcium_client::idl::arcium::types::Output::ArcisX25519Pubkey);
-    outputs.push(::arcium_client::idl::arcium::types::Output::PlaintextU128);
-    outputs.extend(std::iter::repeat(::arcium_client::idl::arcium::types::Output::Ciphertext).take(ciphertext_count));
-    outputs
-}
-
-impl<'info> arcium_anchor::traits::InitCompDefAccs<'info> for InitFirstPriceCompDef<'info> {
-    fn arcium_program(&self) -> AccountInfo<'info> {
-        self.arcium_program.to_account_info()
-    }
-
-    fn mxe_program(&self) -> Pubkey {
-        crate::ID
-    }
-
-    fn signer(&self) -> AccountInfo<'info> {
-        self.payer.to_account_info()
-    }
-
-    fn mxe_acc(&self) -> AccountInfo<'info> {
-        self.mxe_account.to_account_info()
-    }
-
-    fn comp_def_acc(&self) -> AccountInfo<'info> {
-        self.comp_def_account.to_account_info()
-    }
-
-    fn address_lookup_table(&self) -> AccountInfo<'info> {
-        self.address_lookup_table.to_account_info()
-    }
-
-    fn lut_program(&self) -> AccountInfo<'info> {
-        self.lut_program.to_account_info()
-    }
-
-    fn system_program(&self) -> AccountInfo<'info> {
-        self.system_program.to_account_info()
-    }
-
-    fn params(&self) -> Vec<::arcium_client::idl::arcium::types::Parameter> {
-        bids_input_params(false)
-    }
-
-    fn outputs(&self) -> Vec<::arcium_client::idl::arcium::types::Output> {
-        winner_outputs(2)
-    }
-
-    fn comp_def_offset(&self) -> u32 {
-        instructions::COMP_DEF_OFFSET_FIRST_PRICE
-    }
-
-    fn compiled_circuit_len(&self) -> u32 {
-        include_bytes!("../build/first_price_winner.arcis").len() as u32
-    }
-
-    fn weight(&self) -> u64 {
-        1_000_000
-    }
-}
-
-impl<'info> arcium_anchor::traits::InitCompDefAccs<'info> for InitVickreyCompDef<'info> {
-    fn arcium_program(&self) -> AccountInfo<'info> {
-        self.arcium_program.to_account_info()
-    }
-
-    fn mxe_program(&self) -> Pubkey {
-        crate::ID
-    }
-
-    fn signer(&self) -> AccountInfo<'info> {
-        self.payer.to_account_info()
-    }
-
-    fn mxe_acc(&self) -> AccountInfo<'info> {
-        self.mxe_account.to_account_info()
-    }
-
-    fn comp_def_acc(&self) -> AccountInfo<'info> {
-        self.comp_def_account.to_account_info()
-    }
-
-    fn address_lookup_table(&self) -> AccountInfo<'info> {
-        self.address_lookup_table.to_account_info()
-    }
-
-    fn lut_program(&self) -> AccountInfo<'info> {
-        self.lut_program.to_account_info()
-    }
-
-    fn system_program(&self) -> AccountInfo<'info> {
-        self.system_program.to_account_info()
-    }
-
-    fn params(&self) -> Vec<::arcium_client::idl::arcium::types::Parameter> {
-        bids_input_params(false)
-    }
-
-    fn outputs(&self) -> Vec<::arcium_client::idl::arcium::types::Output> {
-        winner_outputs(2)
-    }
-
-    fn comp_def_offset(&self) -> u32 {
-        instructions::COMP_DEF_OFFSET_VICKREY
-    }
-
-    fn compiled_circuit_len(&self) -> u32 {
-        include_bytes!("../build/vickrey_winner.arcis").len() as u32
-    }
-
-    fn weight(&self) -> u64 {
-        1_000_000
-    }
-}
-
-impl<'info> arcium_anchor::traits::InitCompDefAccs<'info> for InitUniformCompDef<'info> {
-    fn arcium_program(&self) -> AccountInfo<'info> {
-        self.arcium_program.to_account_info()
-    }
-
-    fn mxe_program(&self) -> Pubkey {
-        crate::ID
-    }
-
-    fn signer(&self) -> AccountInfo<'info> {
-        self.payer.to_account_info()
-    }
-
-    fn mxe_acc(&self) -> AccountInfo<'info> {
-        self.mxe_account.to_account_info()
-    }
-
-    fn comp_def_acc(&self) -> AccountInfo<'info> {
-        self.comp_def_account.to_account_info()
-    }
-
-    fn address_lookup_table(&self) -> AccountInfo<'info> {
-        self.address_lookup_table.to_account_info()
-    }
-
-    fn lut_program(&self) -> AccountInfo<'info> {
-        self.lut_program.to_account_info()
-    }
-
-    fn system_program(&self) -> AccountInfo<'info> {
-        self.system_program.to_account_info()
-    }
-
-    fn params(&self) -> Vec<::arcium_client::idl::arcium::types::Parameter> {
-        bids_input_params(true)
-    }
-
-    fn outputs(&self) -> Vec<::arcium_client::idl::arcium::types::Output> {
-        winner_outputs(3)
-    }
-
-    fn comp_def_offset(&self) -> u32 {
-        instructions::COMP_DEF_OFFSET_UNIFORM
-    }
-
-    fn compiled_circuit_len(&self) -> u32 {
-        include_bytes!("../build/uniform_price_winner.arcis").len() as u32
-    }
-
-    fn weight(&self) -> u64 {
-        1_000_000
-    }
-}
-
-// ─── Events ──────────────────────────────────────────────────────────────────
 
 #[event]
 pub struct AuctionSettled {
     pub auction: Pubkey,
-    /// Encrypted winner index from MPC circuit.
-    pub winner_ciphertext: [u8; 32],
-    /// Encrypted clearing price.
-    pub price_ciphertext: [u8; 32],
-    pub nonce: u128,
-    /// X25519 ephemeral pubkey for decrypting the ciphertexts.
-    pub encryption_key: [u8; 32],
+    pub winner: Pubkey,
+    pub clearing_price: u64,
 }
 
 #[event]
 pub struct AuctionCancelled {
     pub auction: Pubkey,
-}
-
-#[event]
-pub struct AuctionForceCancelled {
-    pub auction: Pubkey,
-}
-
-#[event]
-pub struct RefundClaimed {
-    pub auction: Pubkey,
-    pub bidder: Pubkey,
-    pub amount: u64,
 }

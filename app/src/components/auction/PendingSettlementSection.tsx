@@ -70,8 +70,6 @@ function SettlementRow({ auction, index }: { auction: LiveAuction; index: number
                         onClick={() =>
                             close(
                                 auction.publicKey,
-                                auction.creator,
-                                auction.deadlineMs,
                                 auction.auctionType,
                             )
                         }

@@ -32,7 +32,7 @@ export function AuctionDetailClient({ auctionId, isRealPubkey }: Props) {
     isRealPubkey ? auctionId : null,
   );
 
-  const { close: closeAuction, loading: closing } = useCloseAuction();
+  const { close: closeAuction, loading: closing, txSig: closeSig, error: closeError } = useCloseAuction();
   const { claim: claimRefund, loading: claiming, txSig: refundSig } = useClaimRefund();
   const { forceCancel, loading: forceCancelling, txSig: forceCancelSig } = useForceCancel();
 
@@ -75,9 +75,7 @@ export function AuctionDetailClient({ auctionId, isRealPubkey }: Props) {
   const title = meta?.title || shortAddress(auctionId);
   const description = meta?.description || 'Onchain sealed-bid auction powered by Arcium MPC.';
   const creator = chainAuction!.creator;
-  const units = (chainAuction!.auctionType as any).uniformPrice?.units
-    ? Number((chainAuction!.auctionType as any).uniformPrice.units)
-    : 1;
+  const units = 1;
 
   const settled = status === 'settled';
   const computing = status === 'computing';
@@ -302,12 +300,25 @@ export function AuctionDetailClient({ auctionId, isRealPubkey }: Props) {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => closeAuction(auctionId, creator, deadlineMs / 1000, chainAuction!.auctionType)}
+                      onClick={() => closeAuction(auctionId, chainAuction!.auctionType)}
                       disabled={closing}
                       className="w-full"
                     >
                       {closing ? 'Closing…' : 'Close Auction & Start MPC'}
                     </Button>
+                    {closeError ? (
+                      <p className="mt-2 text-xs text-state-danger break-words">{closeError}</p>
+                    ) : null}
+                    {closeSig ? (
+                      <a
+                        href={`https://explorer.solana.com/tx/${closeSig}?cluster=devnet`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-2 flex items-center justify-center gap-1 text-[10px] font-mono uppercase tracking-widest text-accent-bright hover:underline"
+                      >
+                        View close tx <ExternalLink size={9} />
+                      </a>
+                    ) : null}
                   </div>
                 ) : null}
                 <BidForm
@@ -348,7 +359,6 @@ export function AuctionDetailClient({ auctionId, isRealPubkey }: Props) {
 function labelFromType(t: any): string {
   if (t?.sealedBidFirstPrice !== undefined) return 'First-Price';
   if (t?.vickrey !== undefined) return 'Vickrey';
-  if (t?.uniformPrice !== undefined) return 'Uniform-Price';
   return 'First-Price';
 }
 

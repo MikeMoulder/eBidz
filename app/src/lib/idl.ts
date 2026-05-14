@@ -1,42 +1,35 @@
 /**
- * eBidz Program IDL — mirrors the Rust types from programs/ebidz/src/
- * This is a hand-authored IDL that can be replaced with the one generated
- * by `anchor build` once the toolchain is available.
+ * eBidz Program IDL mirrored from the current deployed first_price_winner flow.
  */
 export const EBIDZ_PROGRAM_ID = '3s8PVCbX5eTiBDnn2oW9EdsH82V3JE2ua5aEDwBz9uBv';
 
 export type AuctionType =
   | { sealedBidFirstPrice: Record<string, never> }
-  | { vickrey: Record<string, never> }
-  | { uniformPrice: { units: string } }; // u64 as BN string
+  | { vickrey: Record<string, never> };
 
-export type AuctionStatus =
-  | 'active'
-  | 'computing'
-  | 'settled'
-  | 'cancelled';
+export type AuctionStatus = 'active' | 'computing' | 'settled' | 'cancelled';
 
 export interface AuctionAccount {
   creator: string;
   itemMint: string;
   auctionType: AuctionType;
-  reservePrice: string | null; // u64 as string (lamports)
-  deadline: string;            // i64 unix seconds
+  reservePrice: string | null;
+  deadline: string;
   status: AuctionStatus;
-  arciumJobId: string | null;  // u64
   winner: string | null;
   clearingPrice: string | null;
   bidCount: string;
+  arciumJobId: string | null;
   bump: number;
 }
 
 export interface BidAccount {
   auction: string;
   bidder: string;
-  encryptedAmount: number[];   // [u8; 32]
-  pubKey: number[];            // [u8; 32]
-  nonce: string;               // u128 as string
-  deposit: string;             // u64 lamports
+  encryptedAmount: number[];
+  pubKey: number[];
+  nonce: string;
+  deposit: string;
   submittedAt: string;
   refunded: boolean;
   bump: number;
@@ -45,21 +38,14 @@ export interface BidAccount {
 export const EBIDZ_IDL = {
   version: '0.1.0',
   name: 'ebidz',
-  address: '3s8PVCbX5eTiBDnn2oW9EdsH82V3JE2ua5aEDwBz9uBv',
-  metadata: { address: '3s8PVCbX5eTiBDnn2oW9EdsH82V3JE2ua5aEDwBz9uBv' },
+  address: EBIDZ_PROGRAM_ID,
+  metadata: { address: EBIDZ_PROGRAM_ID },
   types: [
     {
       name: 'auctionType',
       type: {
         kind: 'enum',
-        variants: [
-          { name: 'sealedBidFirstPrice' },
-          { name: 'vickrey' },
-          {
-            name: 'uniformPrice',
-            fields: [{ name: 'units', type: 'u64' }],
-          },
-        ],
+        variants: [{ name: 'sealedBidFirstPrice' }, { name: 'vickrey' }],
       },
     },
     {
@@ -85,10 +71,10 @@ export const EBIDZ_IDL = {
           { name: 'reservePrice', type: { option: 'u64' } },
           { name: 'deadline', type: 'i64' },
           { name: 'status', type: { defined: { name: 'auctionStatus' } } },
-          { name: 'arciumJobId', type: { option: 'u64' } },
           { name: 'winner', type: { option: 'pubkey' } },
           { name: 'clearingPrice', type: { option: 'u64' } },
           { name: 'bidCount', type: 'u64' },
+          { name: 'arciumJobId', type: { option: 'u64' } },
           { name: 'bump', type: 'u8' },
         ],
       },
@@ -111,26 +97,12 @@ export const EBIDZ_IDL = {
       },
     },
     {
-      name: 'AuctionSettled',
-      type: {
-        kind: 'struct',
-        fields: [
-          { name: 'auction', type: 'pubkey' },
-          { name: 'winnerCiphertext', type: { array: ['u8', 32] } },
-          { name: 'priceCiphertext', type: { array: ['u8', 32] } },
-          { name: 'nonce', type: 'u128' },
-          { name: 'encryptionKey', type: { array: ['u8', 32] } },
-        ],
-      },
-    },
-    {
       name: 'BidsData',
       type: {
         kind: 'struct',
         fields: [
-          { name: 'sharedPubkey', type: { array: ['u8', 32] } },
-          { name: 'noncePadded', type: { array: ['u8', 32] } },
-          { name: 'ciphertexts', type: { array: ['u8', 8192] } },
+          { name: 'bids', type: { array: ['u8', 6144] } },
+          { name: 'bidders', type: { array: ['u8', 2048] } },
         ],
       },
     },
@@ -138,14 +110,11 @@ export const EBIDZ_IDL = {
       name: 'ArciumSignerAccount',
       type: {
         kind: 'struct',
-        fields: [
-          { name: 'bump', type: 'u8' },
-        ],
+        fields: [{ name: 'bump', type: 'u8' }],
       },
     },
   ],
   instructions: [
-    // ── One-time setup ────────────────────────────────────────────────────────
     {
       name: 'initSignPda',
       discriminator: [102, 179, 4, 195, 198, 41, 211, 183],
@@ -156,13 +125,12 @@ export const EBIDZ_IDL = {
       ],
       args: [],
     },
-    // ── Computation-definition initializers (called once post-deploy) ───────
     {
       name: 'initFirstPriceCompDef',
       discriminator: [72, 178, 88, 184, 132, 141, 108, 186],
       accounts: [
         { name: 'payer', writable: true, signer: true },
-        { name: 'mxeAccount' },
+        { name: 'mxeAccount', writable: true },
         { name: 'compDefAccount', writable: true },
         { name: 'addressLookupTable', writable: true },
         { name: 'lutProgram' },
@@ -174,41 +142,6 @@ export const EBIDZ_IDL = {
         { name: 'circuitHash', type: { array: ['u8', 32] } },
       ],
     },
-    {
-      name: 'initVickreyCompDef',
-      discriminator: [58, 24, 223, 249, 137, 105, 54, 49],
-      accounts: [
-        { name: 'payer', writable: true, signer: true },
-        { name: 'mxeAccount' },
-        { name: 'compDefAccount', writable: true },
-        { name: 'addressLookupTable', writable: true },
-        { name: 'lutProgram' },
-        { name: 'systemProgram' },
-        { name: 'arciumProgram' },
-      ],
-      args: [
-        { name: 'circuitUrl', type: 'string' },
-        { name: 'circuitHash', type: { array: ['u8', 32] } },
-      ],
-    },
-    {
-      name: 'initUniformCompDef',
-      discriminator: [39, 192, 143, 34, 248, 46, 189, 197],
-      accounts: [
-        { name: 'payer', writable: true, signer: true },
-        { name: 'mxeAccount' },
-        { name: 'compDefAccount', writable: true },
-        { name: 'addressLookupTable', writable: true },
-        { name: 'lutProgram' },
-        { name: 'systemProgram' },
-        { name: 'arciumProgram' },
-      ],
-      args: [
-        { name: 'circuitUrl', type: 'string' },
-        { name: 'circuitHash', type: { array: ['u8', 32] } },
-      ],
-    },
-    // ── Core instructions ────────────────────────────────────────────────────
     {
       name: 'createAuction',
       discriminator: [234, 6, 201, 246, 47, 219, 176, 107],
@@ -249,7 +182,7 @@ export const EBIDZ_IDL = {
       name: 'closeAuction',
       discriminator: [225, 129, 91, 48, 215, 73, 203, 172],
       accounts: [
-        { name: 'payer', writable: true, signer: true },
+        { name: 'closer', writable: true, signer: true },
         { name: 'auction', writable: true },
         { name: 'bidsData', writable: true },
         { name: 'mxeAccount' },
@@ -261,8 +194,8 @@ export const EBIDZ_IDL = {
         { name: 'clusterAccount', writable: true },
         { name: 'poolAccount', writable: true },
         { name: 'clockAccount', writable: true },
-        { name: 'arciumProgram' },
         { name: 'systemProgram' },
+        { name: 'arciumProgram' },
       ],
       args: [{ name: 'computationOffset', type: 'u64' }],
     },
@@ -291,58 +224,16 @@ export const EBIDZ_IDL = {
       name: 'forceCancel',
       discriminator: [175, 185, 230, 97, 169, 116, 227, 2],
       accounts: [
-        { name: 'caller', signer: true },
+        { name: 'caller', writable: true, signer: true },
         { name: 'auction', writable: true },
       ],
       args: [],
     },
-    {
-      name: 'revealWinner',
-      discriminator: [234, 209, 237, 109, 16, 196, 64, 254],
-      accounts: [
-        { name: 'caller', signer: true },
-        { name: 'auction', writable: true },
-      ],
-      args: [
-        { name: 'winner', type: 'pubkey' },
-        { name: 'clearingPrice', type: 'u64' },
-      ],
-    },
   ],
   accounts: [
-    {
-      name: 'Auction',
-      discriminator: [218, 94, 247, 242, 126, 233, 131, 81],
-    },
-    {
-      name: 'Bid',
-      discriminator: [143, 246, 48, 245, 42, 145, 180, 88],
-    },
-    {
-      name: 'BidsData',
-      discriminator: [173, 20, 64, 215, 134, 149, 236, 44],
-    },
-    {
-      name: 'ArciumSignerAccount',
-      discriminator: [227, 247, 206, 235, 252, 167, 27, 148],
-    },
-  ],
-  events: [
-    {
-      name: 'AuctionSettled',
-      discriminator: [61, 151, 131, 170, 95, 203, 219, 147],
-    },
-  ],
-  errors: [
-    { code: 6000, name: 'DeadlineNotPassed', msg: 'Auction deadline has not elapsed' },
-    { code: 6001, name: 'InvalidAuctionState', msg: 'Auction is not in the expected state' },
-    { code: 6002, name: 'AuctionHasBids', msg: 'Auction already has bids — cannot cancel' },
-    { code: 6003, name: 'DepositTooLow', msg: 'Bid deposit is too low' },
-    { code: 6004, name: 'Unauthorized', msg: 'Only the auction creator can perform this action' },
-    { code: 6005, name: 'BidDeadlinePassed', msg: 'Bid deadline has passed' },
-    { code: 6006, name: 'AlreadyRefunded', msg: 'Already refunded' },
-    { code: 6007, name: 'RefundNotAvailable', msg: 'Bid cannot be refunded while auction is still active or computing' },
-    { code: 6008, name: 'ReserveNotMet', msg: 'Reserve price not met — no winner' },
-    { code: 6009, name: 'MpcTimeoutNotElapsed', msg: 'MPC timeout has not elapsed yet' },
+    { name: 'Auction', discriminator: [218, 94, 247, 242, 126, 233, 131, 81] },
+    { name: 'Bid', discriminator: [143, 246, 48, 245, 42, 145, 180, 88] },
+    { name: 'BidsData', discriminator: [173, 20, 64, 215, 134, 149, 236, 44] },
+    { name: 'ArciumSignerAccount', discriminator: [227, 247, 206, 235, 252, 167, 27, 148] },
   ],
 } as const;

@@ -1,4 +1,4 @@
-export type AuctionType = 'first-price' | 'vickrey' | 'uniform';
+export type AuctionType = 'first-price' | 'vickrey';
 export type AuctionStatus = 'active' | 'computing' | 'settled' | 'cancelled';
 
 export type Auction = {
@@ -31,11 +31,5 @@ export const auctionTypeMeta: Record<
         chip: 'Vickrey',
         description:
             'Highest bid wins, but pays only the second-highest bid amount. Bid your true valuation.',
-    },
-    uniform: {
-        label: 'Uniform-Price Multi-Unit',
-        chip: 'Uniform',
-        description:
-            'Multiple identical units. All winning bidders pay the same clearing price.',
     },
 };
