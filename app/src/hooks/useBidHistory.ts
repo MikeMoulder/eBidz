@@ -14,6 +14,7 @@ import { PublicKey, GetProgramAccountsConfig } from '@solana/web3.js';
 import { BorshAccountsCoder } from '@coral-xyz/anchor';
 import { EBIDZ_IDL, EBIDZ_PROGRAM_ID, AuctionAccount, BidAccount } from '@/lib/idl';
 import { LAMPORTS_PER_SOL } from '@/lib/format';
+import { DEADLINE_FLOOR_MS } from './useAuctions';
 
 export type BidHistory = {
   bidPubkey: string;
@@ -116,6 +117,10 @@ export function useBidHistory(bidderPubkey: string | null) {
 
         const depositSol = Number(BigInt(decodedBid.deposit)) / LAMPORTS_PER_SOL;
         const deadlineMs = Number(BigInt(decodedAuction.deadline) * 1000n);
+
+        // Apply the same listing cutoff as useAuctions.
+        if (deadlineMs < DEADLINE_FLOOR_MS) continue;
+
         const won = decodedAuction.winner?.toString?.() === bidderPubkey ||
                     (decodedAuction.winner as any)?.toString?.() === bidderPubkey;
 

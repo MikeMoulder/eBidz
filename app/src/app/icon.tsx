@@ -10,34 +10,22 @@ export default function Icon() {
                 style={{
                     width: 32,
                     height: 32,
-                    background: '#000000',
+                    background: 'linear-gradient(135deg, #6D45FF 0%, #4A2FBF 100%)',
                     display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    borderRadius: 4,
+                    alignItems: 'flex-end',
+                    justifyContent: 'flex-end',
+                    padding: 4,
+                    borderRadius: 8,
                 }}
             >
-                <svg
-                    width="24"
-                    height="24"
-                    viewBox="0 0 28 28"
-                    fill="none"
-                >
-                    <defs>
-                        <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-                            <stop offset="0%" stopColor="#F1A1FF" />
-                            <stop offset="100%" stopColor="#6D45FF" />
-                        </linearGradient>
-                    </defs>
-                    {/* outer frame */}
-                    <rect x="0.5" y="0.5" width="27" height="27" stroke="url(#g)" strokeWidth="1" fill="none" />
-                    {/* "e" — 3 horizontal bars */}
-                    <rect x="5" y="6" width="18" height="3" fill="url(#g)" />
-                    <rect x="5" y="12.5" width="11" height="3" fill="url(#g)" />
-                    <rect x="5" y="19" width="18" height="3" fill="url(#g)" />
-                    {/* seal dot */}
-                    <circle cx="23" cy="14" r="1.5" fill="#F1A1FF" />
-                </svg>
+                <div
+                    style={{
+                        width: 6,
+                        height: 6,
+                        borderRadius: 3,
+                        background: '#F1A1FF',
+                    }}
+                />
             </div>
         ),
         { ...size },

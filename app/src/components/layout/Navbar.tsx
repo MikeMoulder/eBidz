@@ -7,23 +7,20 @@ export function Navbar() {
     <header className="sticky top-0 z-50 border-b border-border-subtle bg-bg-base/80 backdrop-blur-xl">
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent-primary/50 to-transparent" />
 
-      <div className="mx-auto flex h-14 max-w-[1400px] items-center justify-between px-6">
-        <div className="flex items-center gap-8">
-          <Link href="/" aria-label="eBidz home" className="group">
-            <span className="font-display text-[18px] font-bold tracking-tightest leading-none hover:text-accent-pink transition-colors">
-              ebidz
-            </span>
-          </Link>
+      <div className="relative mx-auto flex h-14 max-w-[1400px] items-center justify-between px-6">
+        <Link href="/" aria-label="eBidz home" className="group">
+          <span className="font-display text-[18px] font-bold tracking-tightest leading-none hover:text-accent-pink transition-colors">
+            ebidz
+          </span>
+        </Link>
 
-          <nav className="hidden md:flex items-center gap-1 border-l border-border-subtle pl-6">
-            <NavLink href="/#live">Auctions</NavLink>
-            <NavLink href="/my-auctions">My Auctions</NavLink>
-            <NavLink href="/bids">My Bids</NavLink>
-            <NavLink href="/create">Launch</NavLink>
-            <NavLink href="/#how">Protocol</NavLink>
-            <NavLink href="/#faq">FAQ</NavLink>
-          </nav>
-        </div>
+        <nav className="hidden md:flex items-center gap-1 absolute left-1/2 -translate-x-1/2">
+          <NavLink href="/">Home</NavLink>
+          <NavLink href="/auctions">Auctions</NavLink>
+          <NavLink href="/my-auctions">My Auctions</NavLink>
+          <NavLink href="/bids">My Bids</NavLink>
+          <NavLink href="/create">Launch</NavLink>
+        </nav>
 
         <div className="flex items-center gap-2">
           <Link

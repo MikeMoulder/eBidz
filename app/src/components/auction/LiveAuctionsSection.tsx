@@ -40,7 +40,7 @@ export function liveToUIAuction(a: LiveAuction): Auction {
   };
 }
 
-export function LiveAuctionsSection() {
+export function LiveAuctionsSection({ limit, sectionNumber = '07 / Marketplace' }: { limit?: number; sectionNumber?: string } = {}) {
   const { auctions: liveAuctions, loading } = useAuctions({ status: 'active' as any });
 
   // Normalise live auctions to UI Auction shape for AuctionCard
@@ -48,13 +48,16 @@ export function LiveAuctionsSection() {
     .map(liveToUIAuction)
     .filter((a) => a.status !== 'settled' && Date.now() <= a.deadline);
 
+  const visible = typeof limit === 'number' ? active.slice(0, limit) : active;
+  const hasMore = typeof limit === 'number' && active.length > limit;
+
   return (
     <section id="live" className="border-b border-border-subtle scroll-mt-20">
       <div className="mx-auto max-w-[1400px] px-6 py-24">
         <div className="flex items-start justify-between gap-4 mb-8 flex-wrap">
           <div>
             <span className="font-mono text-[10px] uppercase tracking-widest text-accent-bright">
-              07 / Marketplace
+              {sectionNumber}
             </span>
             <h2 className="font-display text-3xl md:text-4xl font-bold tracking-tighter mt-2">
               Live auctions.
@@ -82,9 +85,20 @@ export function LiveAuctionsSection() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {active.map((a, i) => (
+            {visible.map((a, i) => (
               <AuctionCard key={a.id} auction={a} index={i} />
             ))}
+          </div>
+        )}
+
+        {(hasMore || (typeof limit === 'number' && active.length > 0)) && (
+          <div className="mt-8 flex justify-center">
+            <Link href="/auctions">
+              <Button variant="outline" size="md">
+                View all auctions
+                <ArrowRight size={12} />
+              </Button>
+            </Link>
           </div>
         )}
       </div>

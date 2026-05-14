@@ -39,6 +39,10 @@ function normalizeStatus(s: any): AuctionStatus {
   return Object.keys(s)[0] as AuctionStatus;
 }
 
+// Fixed cutoff: only display auctions whose deadline is on/after this point.
+// 2026-05-14 05:00 UTC+1 == 2026-05-14 04:00 UTC.
+export const DEADLINE_FLOOR_MS = Date.UTC(2026, 4, 14, 4, 0, 0);
+
 export function useAuctions(filter?: { status?: AuctionStatus }) {
   const { connection } = useConnection();
   const [auctions, setAuctions] = useState<LiveAuction[]>([]);
@@ -80,6 +84,7 @@ export function useAuctions(filter?: { status?: AuctionStatus }) {
           bidCountN,
         };
 
+        if (live.deadlineMs < DEADLINE_FLOOR_MS) continue;
         if (!filterStatus || statusMatches(live.status, filterStatus)) {
           decoded.push(live);
         }

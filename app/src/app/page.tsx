@@ -3,7 +3,6 @@ import Image from 'next/image';
 import arciumLogo from './logo/arcium_logo.png';
 import {
   ArrowRight,
-  ArrowUpRight,
   Lock,
   Zap,
   ShieldCheck,
@@ -16,8 +15,6 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { LiveAuctionsSection } from '@/components/auction/LiveAuctionsSection';
-import { PendingSettlementSection } from '@/components/auction/PendingSettlementSection';
-import { SettledAuctionsSection } from '@/components/auction/SettledAuctionsSection';
 import { Badge } from '@/components/primitives/Badge';
 import { Button } from '@/components/primitives/Button';
 import { ClusterPulse } from '@/components/arcium/ClusterPulse';
@@ -38,9 +35,7 @@ export default function HomePage() {
       <Problem />
       <HowItWorks />
       <AuctionTypesSection />
-      <LiveAuctionsSection />
-      <PendingSettlementSection />
-      <SettledAuctionsSection />
+      <LiveAuctionsSection limit={3} />
       <Trust />
       <FAQ />
       <CTA />
@@ -89,7 +84,7 @@ function Hero() {
               <p className="text-base md:text-lg text-text-secondary leading-relaxed mb-10 max-w-2xl">
                 eBidz is a sealed-bid auction protocol where every bid is
                 encrypted client-side, kept opaque onchain, and processed by
-                Arcium&apos;s MPC cluster — so no validator, no other bidder,
+                Arcium&apos;s MPC cluster, so no validator, no other bidder,
                 and not even the auction creator can read or front-run your
                 bid before settlement.
               </p>
@@ -97,7 +92,7 @@ function Hero() {
 
             <ScrollReveal direction="up" delay={0.3} once={false}>
               <div className="flex flex-wrap items-center gap-3">
-                <Link href="#live">
+                <Link href="/auctions">
                   <Button size="lg">
                     Browse live auctions
                     <ArrowRight
@@ -110,16 +105,6 @@ function Hero() {
                   <Button size="lg" variant="outline">
                     Launch an auction
                   </Button>
-                </Link>
-                <Link
-                  href="#how"
-                  className="inline-flex items-center gap-1.5 h-12 px-3 text-xs uppercase tracking-wider text-text-muted hover:text-accent-pink transition-colors group"
-                >
-                  How it works
-                  <ArrowUpRight
-                    size={12}
-                    className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
-                  />
                 </Link>
               </div>
             </ScrollReveal>
@@ -266,9 +251,9 @@ function Problem() {
         n: '/04',
         statValue: 0,
         statRaw: 'No theory',
-        label: 'Vickrey auctions onchain — until now',
+        label: 'Vickrey auctions onchain, until now',
         title: 'Optimal mechanisms require bid privacy',
-        body: 'Vickrey auctions are theoretically optimal for honest bidding — but require bid secrecy. Without MPC, they are impossible to run trustlessly onchain.',
+        body: 'Vickrey auctions are theoretically optimal for honest bidding, but require bid secrecy. Without MPC, they are impossible to run trustlessly onchain.',
         icon: AlertTriangle,
       },
     ];
@@ -280,7 +265,7 @@ function Problem() {
           <SectionHeader
             number="02 / Problem"
             title="Onchain auctions are fundamentally broken."
-            lede="Every transparent bid is a leak. Every plaintext mempool transaction is an invitation to extract. The auction is no longer a price-discovery mechanism — it&rsquo;s a game for insiders."
+            lede="Every transparent bid is a leak. Every plaintext mempool transaction is an invitation to extract. The auction is no longer a price-discovery mechanism, it&rsquo;s a game for insiders."
           />
         </ScrollReveal>
 
@@ -337,7 +322,7 @@ function HowItWorks() {
     {
       n: '02',
       title: 'Submit ciphertext',
-      body: 'The encrypted bid and a SOL deposit are stored onchain in a per-bidder PDA. Nobody — including validators — can read the bid.',
+      body: 'The encrypted bid and a SOL deposit are stored onchain in a per-bidder PDA. Nobody, including validators, can read the bid.',
     },
     {
       n: '03',
@@ -362,7 +347,7 @@ function HowItWorks() {
           <SectionHeader
             number="03 / Lifecycle"
             title="Trustless privacy, end to end."
-            lede="Every step in the bid lifecycle is designed so no single party — not the creator, not validators, not Arcium itself — can read or front-run your bid."
+            lede="Every step in the bid lifecycle is designed so no single party, not the creator, not validators, not Arcium itself, can read or front-run your bid."
           />
         </ScrollReveal>
 
@@ -413,7 +398,7 @@ function AuctionTypesSection() {
         tag: 'First-Price',
         tagline: 'Highest bid wins, pays own bid.',
         use: 'NFT sales · fundraising · one-off assets',
-        strategy: 'Strategic shading — bid below true valuation',
+        strategy: 'Strategic shading, bid below true valuation',
         live: true,
       },
       {
@@ -421,8 +406,8 @@ function AuctionTypesSection() {
         tag: 'Vickrey',
         tagline: 'Highest bid wins, pays second-highest.',
         use: 'Token sales · governance · fair price discovery',
-        strategy: 'Truthful bidding — dominant strategy',
-        live: true,
+        strategy: 'Truthful bidding, dominant strategy',
+        live: false,
       },
       {
         tone: 'green',
@@ -628,12 +613,12 @@ function TrustCell({ label, desc }: { label: string; desc: string }) {
 function PrivacyTable() {
   const rows = [
     { property: 'Bid amount (during auction)', visible: false, who: 'Encrypted ciphertext only' },
-    { property: 'Bid amount (winner, post-settle)', visible: true, who: 'Public — clearing price' },
+    { property: 'Bid amount (winner, post-settle)', visible: true, who: 'Public, clearing price' },
     { property: 'Bid amount (loser, post-settle)', visible: false, who: 'Never revealed' },
-    { property: 'Bidder wallet address', visible: true, who: 'Public — txn signer' },
-    { property: 'Bid count', visible: true, who: 'Public — bid_count counter' },
-    { property: 'Bid timestamp', visible: true, who: 'Public — slot' },
-    { property: 'Deposit amount', visible: true, who: 'Public — upper bound on bid' },
+    { property: 'Bidder wallet address', visible: true, who: 'Public, txn signer' },
+    { property: 'Bid count', visible: true, who: 'Public, bid_count counter' },
+    { property: 'Bid timestamp', visible: true, who: 'Public, slot' },
+    { property: 'Deposit amount', visible: true, who: 'Public, upper bound on bid' },
     { property: 'Bidder identity (off-chain)', visible: false, who: 'Not collected' },
   ];
 
@@ -723,7 +708,7 @@ function Trust() {
     {
       icon: Cpu,
       title: 'MPC liveness fallback',
-      desc: 'If the cluster fails to deliver within MPC_TIMEOUT, force_cancel becomes callable — every bidder gets refunded.',
+      desc: 'If the cluster fails to deliver within MPC_TIMEOUT, force_cancel becomes callable, every bidder gets refunded.',
     },
     {
       icon: Database,
@@ -773,27 +758,27 @@ function FAQ() {
   const items = [
     {
       q: 'How is my bid actually encrypted?',
-      a: 'The frontend encrypts your bid using the Arcium cluster’s threshold X25519 public key. The encrypted bid is then submitted to the Solana program. Only a quorum of MPC nodes acting together can decrypt — and even then, only inside the MPC circuit, never to a single node.',
+      a: 'The frontend encrypts your bid using the Arcium cluster’s threshold X25519 public key. The encrypted bid is then submitted to the Solana program. Only a quorum of MPC nodes acting together can decrypt, and even then, only inside the MPC circuit, never to a single node.',
     },
     {
       q: 'What if Arcium goes down?',
-      a: 'If MPC_TIMEOUT (default 24h) elapses after close_auction without a settled result, the force_cancel instruction becomes callable by anyone. It refunds every bidder’s deposit and returns the item to the creator. Bidders never have funds permanently locked.',
+      a: 'If MPC times out(default 24h) elapses after auction closes without a settled result, the force cancel instruction becomes callable by anyone. It refunds every bidder’s deposit and returns the item to the creator. Bidders never have funds permanently locked.',
     },
     {
       q: 'Can the auction creator see bids?',
-      a: 'No. The creator has no read access to encrypted bid data — they’re just another participant from the protocol’s perspective. They configure the auction; they cannot influence or peek at it.',
+      a: 'No. The creator has no read access to encrypted bid data, they’re just another participant from the protocol’s perspective. They configure the auction; they cannot influence or peek at it.',
     },
     {
       q: 'Why not zk-SNARKs instead of MPC?',
-      a: 'SNARKs prove things about already-known data. The hard part of a sealed-bid auction is computing over data nobody has access to. MPC gives us correctness and privacy on encrypted inputs — exactly the primitive we need.',
+      a: 'SNARKs prove things about already-known data. The hard part of a sealed-bid auction is computing over data nobody has access to. MPC gives us correctness and privacy on encrypted inputs, exactly the primitive we need.',
     },
     {
       q: 'What’s the gas cost?',
-      a: 'A standard Solana transaction for submit_bid (~5,000 lamports), plus rent for the Bid PDA. Settlement is a single Arcium callback. Total cost per auction is roughly equivalent to a token transfer + a small CPI call.',
+      a: 'A standard Solana transaction for bid submission (~5,000 lamports), plus rent for the Bid PDA. Settlement is a single Arcium callback. Total cost per auction is roughly equivalent to a token transfer + a small CPI call.',
     },
     {
       q: 'Can I update my bid?',
-      a: 'No. Bids are immutable once submitted. Raising a bid would require topping up the plaintext deposit, which leaks an upper bound on the new amount. For Vickrey auctions this isn’t a problem — truthful bidding is already optimal.',
+      a: 'No. Bids are immutable once submitted. Raising a bid would require topping up the plaintext deposit, which leaks an upper bound on the new amount. For Vickrey auctions this isn’t a problem, truthful bidding is already optimal.',
     },
   ];
 
@@ -869,7 +854,7 @@ function CTA() {
                 <ArrowRight size={14} />
               </Button>
             </Link>
-            <Link href="#live">
+            <Link href="/auctions">
               <Button size="lg" variant="outline">
                 Browse marketplace
               </Button>

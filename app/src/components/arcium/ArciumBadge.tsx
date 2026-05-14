@@ -26,8 +26,8 @@ export function ArciumBadge({ className }: { className?: string }) {
           <div className="label-eyebrow mb-2">Privacy guarantee</div>
           <p className="text-xs text-text-secondary leading-relaxed mb-3">
             Bids are encrypted client-side and computed by Arcium&apos;s
-            Multi-Party Computation network. No node — including the auction
-            creator — can read individual bids before settlement.
+            Multi-Party Computation network. No node, including the auction
+            creator, can read individual bids before settlement.
           </p>
           <div className="grid grid-cols-2 gap-2 text-[10px] font-mono uppercase tracking-widest pt-3 border-t border-border-subtle">
             <Row label="Threshold" value="5/7" />

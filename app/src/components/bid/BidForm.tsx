@@ -38,7 +38,7 @@ export function BidForm({ auctionPubkey, minBid = 0, auctionCreator }: Props) {
             <p className="text-xs text-text-secondary leading-relaxed">
               The program rejects bids from the creator. When this auction settles,
               use <span className="font-mono text-accent-bright">Claim Seller Proceeds</span>
-              {' '}to withdraw the winning bid&apos;s SOL — or reclaim your asset if no bids clear the reserve.
+              {' '}to withdraw the winning bid&apos;s SOL, or reclaim your asset if no bids clear the reserve.
             </p>
           </div>
         </div>

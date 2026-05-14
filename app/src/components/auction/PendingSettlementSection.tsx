@@ -116,7 +116,7 @@ export function PendingSettlementSection() {
                         </h2>
                         <p className="text-text-secondary leading-relaxed max-w-2xl mt-4">
                             These auctions have ended and are awaiting Arcium MPC settlement. Settlement is
-                            permissionless — any connected wallet can trigger it.
+                            permissionless, any connected wallet can trigger it.
                         </p>
                     </div>
                 </ScrollReveal>

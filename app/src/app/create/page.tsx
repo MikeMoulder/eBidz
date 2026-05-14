@@ -235,7 +235,7 @@ export default function CreateAuctionPage() {
                       </p>
                       <p className="text-xs text-text-muted leading-relaxed">
                         1 unit of the item mint moves from your wallet into a
-                        PDA-owned vault in the same transaction — neither you,
+                        PDA-owned vault in the same transaction, neither you,
                         eBidz Labs, nor any admin can withdraw it. The winner
                         claims it after MPC settlement; if no bid clears the
                         reserve, you can reclaim it. Bidders&apos; SOL deposits
@@ -510,7 +510,7 @@ function NftPreview({
             {lookup.status === 'not-found' ? 'Mint not found on this cluster' : 'Lookup failed'}
           </p>
           <p className="text-text-muted leading-relaxed">
-            {lookup.error || 'Double-check the address. You can still launch if the mint exists — paste an Image URL override above to display it.'}
+            {lookup.error || 'Double-check the address. You can still launch if the mint exists, paste an Image URL override above to display it.'}
           </p>
         </div>
       </div>

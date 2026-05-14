@@ -371,12 +371,12 @@ export function AuctionDetailClient({ auctionId, isRealPubkey }: Props) {
               </div>
               <p className="text-text-secondary text-sm">
                 Arcium's MPC cluster is processing all encrypted bids. The result will
-                be posted onchain automatically — no action required.
+                be posted onchain automatically, no action required.
               </p>
               {canForceCancel && (
                 <div className="mt-4 border-t border-border-subtle pt-4">
                   <p className="text-xs text-text-faint mb-3">
-                    MPC timeout elapsed — you can cancel this auction and claim refunds.
+                    MPC timeout elapsed, you can cancel this auction and claim refunds.
                   </p>
                   {forceCancelSig ? (
                     <a
@@ -384,7 +384,7 @@ export function AuctionDetailClient({ auctionId, isRealPubkey }: Props) {
                       target="_blank" rel="noopener noreferrer"
                       className="text-xs font-mono text-accent-bright hover:underline"
                     >
-                      Cancelled ✓ — View tx
+                      Cancelled ✓, View tx
                     </a>
                   ) : (
                     <Button

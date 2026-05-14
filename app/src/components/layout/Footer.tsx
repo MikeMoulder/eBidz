@@ -1,5 +1,7 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { Github, Twitter, BookOpen, Globe } from 'lucide-react';
+import arciumLogo from '@/app/logo/arcium_logo.png';
 
 export function Footer() {
   return (
@@ -14,7 +16,7 @@ export function Footer() {
             </span>
             <p className="mt-4 text-sm text-text-muted max-w-sm leading-relaxed">
               Sealed-bid auctions on Solana. Bids stay encrypted under Arcium MPC
-              until settlement — fair price discovery without front-running, MEV,
+              until settlement, fair price discovery without front-running, MEV,
               or insider collusion.
             </p>
 
@@ -52,12 +54,11 @@ export function Footer() {
           <p className="font-mono text-[10px] uppercase tracking-widest text-text-faint">
             © 2026 ebidz labs · all rights reserved
           </p>
-          <p className="font-mono text-[10px] uppercase tracking-widest text-text-faint text-center">
-            Built for the Arcium × Solana Bounty
+          <p className="font-mono text-[10px] uppercase tracking-widest text-text-faint text-center inline-flex items-center justify-center gap-1.5 md:justify-self-center">
+            <Image src={arciumLogo} alt="Arcium" className="h-3 w-3 object-contain" />
+            Powered By ARCIUM
           </p>
           <div className="flex items-center justify-end gap-3 font-mono text-[10px] uppercase tracking-widest text-text-faint">
-            <span>v0.1.0</span>
-            <span>·</span>
             <span>devnet</span>
             <span>·</span>
             <span className="inline-flex items-center gap-1.5">
