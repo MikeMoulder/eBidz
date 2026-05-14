@@ -24,7 +24,9 @@ export function liveToUIAuction(a: LiveAuction): Auction {
 
   return {
     id: a.publicKey,
-    title: meta?.title || a.publicKey.slice(0, 8) + '…',
+    // Leave empty when there's no local meta — AuctionCard will fall through
+    // to the on-chain NFT name via useResolvedAuctionDisplay.
+    title: meta?.title || '',
     description: meta?.description || '',
     imageUrl: meta?.imageUrl || '',
     itemMint: a.itemMint,

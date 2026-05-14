@@ -8,7 +8,7 @@ import { CountdownTimer } from './CountdownTimer';
 import { CiphertextScramble } from '@/components/arcium/CiphertextScramble';
 import { auctionTypeMeta, type Auction, type AuctionType } from '@/lib/types';
 import { formatSol, shortAddress } from '@/lib/format';
-import { useResolvedAuctionImage } from '@/hooks/useResolvedAuctionImage';
+import { useResolvedAuctionDisplay } from '@/hooks/useResolvedAuctionImage';
 
 const typeTone: Record<AuctionType, 'violet' | 'lavender' | 'green'> = {
   'first-price': 'violet',
@@ -19,8 +19,9 @@ export function AuctionCard({ auction, index }: { auction: Auction; index?: numb
   const meta = auctionTypeMeta[auction.auctionType];
   const settled = auction.status === 'settled';
   const expired = !settled && Date.now() > auction.deadline;
-  const resolvedImage = useResolvedAuctionImage(auction.id, auction.itemMint);
+  const { image: resolvedImage, name: resolvedName } = useResolvedAuctionDisplay(auction.id, auction.itemMint);
   const imageSrc = auction.imageUrl || resolvedImage;
+  const displayTitle = auction.title || resolvedName || shortAddress(auction.id, 8);
 
   return (
     <Link href={`/auction/${auction.id}`} className="group block">
@@ -51,7 +52,7 @@ export function AuctionCard({ auction, index }: { auction: Auction; index?: numb
         <div className="relative aspect-[4/3] overflow-hidden bg-bg-elevated">
           <Image
             src={imageSrc}
-            alt={auction.title}
+            alt={displayTitle}
             fill
             sizes="(max-width: 768px) 100vw, 33vw"
             className="object-cover transition-transform duration-500 group-hover:scale-[1.04]"
@@ -90,7 +91,7 @@ export function AuctionCard({ auction, index }: { auction: Auction; index?: numb
 
         <div className="p-4">
           <h3 className="font-display text-[17px] font-semibold leading-tight mb-3 line-clamp-2 group-hover:text-accent-bright transition-colors min-h-[2.6em]">
-            {auction.title}
+            {displayTitle}
           </h3>
 
           <div className="grid grid-cols-2 gap-px bg-border-subtle">

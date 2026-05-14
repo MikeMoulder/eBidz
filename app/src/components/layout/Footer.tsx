@@ -1,7 +1,18 @@
 import Link from 'next/link';
 import Image from 'next/image';
-import { Github, Twitter, BookOpen, Globe } from 'lucide-react';
+import { BookOpen, Globe } from 'lucide-react';
+
+function GithubIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.111.82-.261.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.4 3-.405 1.02.005 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" />
+    </svg>
+  );
+}
 import arciumLogo from '@/app/logo/arcium_logo.png';
+
+const REPO = 'https://github.com/MikeMoulder/eBidz';
+const ARCIUM = 'https://arcium.com';
 
 export function Footer() {
   return (
@@ -10,7 +21,7 @@ export function Footer() {
 
       <div className="mx-auto max-w-[1400px] px-6 py-14">
         <div className="grid grid-cols-2 md:grid-cols-12 gap-8">
-          <div className="col-span-2 md:col-span-5">
+          <div className="col-span-2 md:col-span-6">
             <span className="font-display text-[22px] font-bold tracking-tightest leading-none">
               ebidz
             </span>
@@ -21,32 +32,30 @@ export function Footer() {
             </p>
 
             <div className="mt-5 flex items-center gap-2">
-              <SocialLink icon={<Github size={14} />} label="GitHub" />
-              <SocialLink icon={<Twitter size={14} />} label="Twitter" />
-              <SocialLink icon={<BookOpen size={14} />} label="Docs" />
-              <SocialLink icon={<Globe size={14} />} label="Website" />
+              <SocialLink href={REPO} icon={<GithubIcon size={14} />} label="GitHub" />
+              <SocialLink href={`${REPO}/tree/main/docs`} icon={<BookOpen size={14} />} label="Docs" />
+              <SocialLink href={ARCIUM} icon={<Globe size={14} />} label="Arcium" />
             </div>
           </div>
 
           <FooterColumn title="Protocol">
-            <FooterLink>How it works</FooterLink>
-            <FooterLink>Auction types</FooterLink>
-            <FooterLink>Privacy model</FooterLink>
-            <FooterLink>Threat analysis</FooterLink>
+            <FooterLink href="/#how">How it works</FooterLink>
+            <FooterLink href="/#faq">FAQ</FooterLink>
+            <FooterLink href={`${REPO}/blob/main/docs/ARCHITECTURE.md`}>Architecture</FooterLink>
           </FooterColumn>
 
-          <FooterColumn title="Build">
-            <FooterLink>Anchor IDL</FooterLink>
-            <FooterLink>SDK</FooterLink>
-            <FooterLink>Arcium MXE</FooterLink>
-            <FooterLink>Examples</FooterLink>
+          <FooterColumn title="Arcium">
+            <FooterLink href={ARCIUM}>Website</FooterLink>
+            <FooterLink href="https://docs.arcium.com">Docs</FooterLink>
+            <FooterLink href="https://github.com/arcium-hq">GitHub</FooterLink>
+            <FooterLink href={`${ARCIUM}/brand`}>Brand</FooterLink>
           </FooterColumn>
 
-          <FooterColumn title="Company">
-            <FooterLink>About</FooterLink>
-            <FooterLink>Blog</FooterLink>
-            <FooterLink>Careers</FooterLink>
-            <FooterLink>Contact</FooterLink>
+          <FooterColumn title="Contact">
+            <FooterLink href="https://x.com/moulderofweb3">Twitter</FooterLink>
+            <FooterLink href="mailto:mike.moulder.dev@gmail.com">Email</FooterLink>
+            <FooterLink href="https://t.me/lordmikemoulder">Telegram</FooterLink>
+            <FooterLink href="https://discord.gg/DjVVshY3SE">Discord</FooterLink>
           </FooterColumn>
         </div>
 
@@ -87,20 +96,29 @@ function FooterColumn({
   );
 }
 
-function FooterLink({ children }: { children: React.ReactNode }) {
+function FooterLink({ href, children }: { href: string; children: React.ReactNode }) {
+  const isExternal = href.startsWith('http');
   return (
     <li>
-      <Link href="#" className="text-text-muted hover:text-text-primary transition-colors">
+      <Link
+        href={href}
+        target={isExternal ? '_blank' : undefined}
+        rel={isExternal ? 'noopener noreferrer' : undefined}
+        className="text-text-muted hover:text-text-primary transition-colors"
+      >
         {children}
       </Link>
     </li>
   );
 }
 
-function SocialLink({ icon, label }: { icon: React.ReactNode; label: string }) {
+function SocialLink({ href, icon, label }: { href: string; icon: React.ReactNode; label: string }) {
+  const isExternal = href.startsWith('http');
   return (
     <a
-      href="#"
+      href={href}
+      target={isExternal ? '_blank' : undefined}
+      rel={isExternal ? 'noopener noreferrer' : undefined}
       aria-label={label}
       className="grid place-items-center h-8 w-8 border border-border-subtle text-text-muted hover:text-accent-bright hover:border-accent-primary/40 transition-colors"
     >

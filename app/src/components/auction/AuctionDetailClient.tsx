@@ -15,7 +15,7 @@ import {
   useForceCancel,
   useReclaimAuctionAsset,
 } from '@/hooks/useAuctionActions';
-import { useResolvedAuctionImage } from '@/hooks/useResolvedAuctionImage';
+import { useResolvedAuctionDisplay } from '@/hooks/useResolvedAuctionImage';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { shortAddress } from '@/lib/format';
 import { getAuctionMeta } from '@/lib/auctionMeta';
@@ -62,8 +62,9 @@ export function AuctionDetailClient({ auctionId, isRealPubkey }: Props) {
     error: reclaimError,
   } = useReclaimAuctionAsset();
 
-  // Resolve display image — must run before any early returns so hook order stays stable.
-  const imageUrl = useResolvedAuctionImage(auctionId, chainAuction?.itemMint);
+  // Resolve display image + NFT name — must run before any early returns so hook order stays stable.
+  const resolved = useResolvedAuctionDisplay(auctionId, chainAuction?.itemMint);
+  const imageUrl = resolved.image;
 
   // ── Early exits ──────────────────────────────────────────────────────────
   if (!isRealPubkey || (!chainAuction && !chainLoading)) {
@@ -100,8 +101,9 @@ export function AuctionDetailClient({ auctionId, isRealPubkey }: Props) {
 
   const meta = getAuctionMeta(auctionId);
 
-  const title = meta?.title || shortAddress(auctionId);
-  const description = meta?.description || 'Onchain sealed-bid auction powered by Arcium MPC.';
+  const title = meta?.title || resolved.name || shortAddress(auctionId);
+  const resolvedDescription = meta?.description || resolved.description || '';
+  const description = resolvedDescription || 'Onchain sealed-bid auction powered by Arcium MPC.';
   const creator = chainAuction!.creator;
   const units = 1;
 
